@@ -118,5 +118,6 @@ raise NotImplementedError()
 # TODO: cost seems inconsistent (original vs. generated -- try big examples!)
 # TODO: cost of generated sometimes much higher than original --> why?
 # TODO: do empty strings behave strange? i.e. pull notes down (?)
-# TODO: try super simple version for notes only (string, fret, pitch, only standard tuning) -- probably needs detailed 1-hot-encoding
+# TODO: try super simple version for notes only (string, fret, pitch, only standard tuning) --
+#       probably needs detailed 1-hot-encoding
 # TODO: heuristic pre-pruning in ChordFretting (range <= 4)

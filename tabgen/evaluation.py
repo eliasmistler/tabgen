@@ -31,6 +31,7 @@ class DummyFrettingEvaluator(ChordFrettingEvaluatorBase):
 
     def __str__(self) -> str:
         return 'DummyFrettingEvaluator()'
+
     __repr__ = __str__
 
 
@@ -39,12 +40,13 @@ class RandomChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     Simplest approach: just select a random fretting
     """
 
-    def __init__(self, random_seed: int=None):
+    def __init__(self, random_seed: int = None):
         ChordFrettingEvaluatorBase.__init__(self, 'random')
         np.random.seed(random_seed)
 
     def __str__(self) -> str:
         return 'RandomChordFrettingEvaluator()'
+
     __repr__ = __str__
 
     def evaluate(self, fretting: ChordFretting) -> float:
@@ -54,7 +56,9 @@ class RandomChordFrettingEvaluator(ChordFrettingEvaluatorBase):
 class BaselineChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     """
     Encapsulation of the Evaluation algorithm, i.e. cost function
-    - Baseline model, using a simple
+    - Baseline model, using a simple heuristic:
+        input weights relating to features are used to calculate
+        cost = sum( weight[i] * feature[i] )
     """
 
     def __init__(self, weights: dict):
@@ -68,6 +72,7 @@ class BaselineChordFrettingEvaluator(ChordFrettingEvaluatorBase):
 
     def __str__(self) -> str:
         return 'BaselineChordFrettingEvaluator({})'.format(self._weights)
+
     __repr__ = __str__
 
     def evaluate(self, fretting: ChordFretting) -> float:
@@ -77,7 +82,6 @@ class BaselineChordFrettingEvaluator(ChordFrettingEvaluatorBase):
             cost += self._weights[feature_name] * fretting.features[feature_name]
         return cost
 
-# TODO: simple heuristic based on delta
 
 # TODO: fix regression model
 class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
@@ -89,7 +93,7 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     __eval_avg_time__ = 0
 
     def __init__(self, training_data_file: str, weights: dict,
-                 model_type: type=sklearn.linear_model.LinearRegression, kwargs: typing.Optional[dict]=None):
+                 model_type: type = sklearn.linear_model.LinearRegression, kwargs: typing.Optional[dict] = None):
         """
         :param training_data_file: Where to load the training data from
         :type training_data_file: str
@@ -103,7 +107,7 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         ChordFrettingEvaluatorBase.__init__(self, 'regression')
         assert os.path.isfile(training_data_file), 'Could not read file: {}'.format(training_data_file)
         assert type(weights) is dict
-        assert issubclass(model_type, sklearn.base.RegressorMixin),\
+        assert issubclass(model_type, sklearn.base.RegressorMixin), \
             'model_type must be a Regression Model (subclass of sklearn.base.RegressorMixin): {}'.format(model_type)
         if kwargs is None:
             self._kwargs = {}
@@ -121,6 +125,7 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     def __str__(self) -> str:
         return 'RegressionChordFrettingEvaluator(\'{}\', {}, {}, {})'.format(
             self._data_file, self._model_weights, self._model_type, self._kwargs)
+
     __repr__ = __str__
 
     def _train(self) -> None:
@@ -235,7 +240,7 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
             else:
                 # moving average
                 self.__eval_avg_time__ = \
-                    (1.0 - 1.0 / self.__eval_count__) * self.__eval_avg_time__\
+                    (1.0 - 1.0 / self.__eval_count__) * self.__eval_avg_time__ \
                     + (1.0 / self.__eval_count__) * t
 
         return cost
@@ -251,6 +256,7 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     """
     Predicts the most likely next feature vector and determines cost as Euclidean distance in feature space
     """
+
     def __init__(self):
         super().__init__('lstm')
 
@@ -290,9 +296,13 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     def _compile_model(self):
         from keras.backend.tensorflow_backend import tf
         tf_mask = tf.constant(dtype=tf.float32, value=self._feature_mask)
-        loss = lambda y_true, y_pred: tf.reduce_mean(tf.square(tf.multiply(tf.subtract(y_true,y_pred), tf_mask)))
         # loss = 'mse'
-        self._model.compile(optimizer='adam', loss=loss)
+        self._model.compile(
+            optimizer='adam',
+
+            # custom loss function: apply mask to ignore some output features
+            loss=lambda y_true, y_pred: tf.reduce_mean(tf.square(tf.multiply(tf.subtract(y_true, y_pred), tf_mask)))
+        )
 
     def evaluate(self, fretting: ChordFretting) -> float:
         # Evaluate the fit by comparing against a prediction from an LSTM
@@ -302,7 +312,6 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         dataset = []
 
         for ii in range(FeatureConfiguration.max_depth + 1):
-
             # concatenate previous feature vector
             dataset = [np.array(
                 [prev_x.features[name] for name in self._target_names]
@@ -320,12 +329,6 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         # scale
         xx = self.divide_or_zero(xx, self._max_vals[0])
         yy = self.divide_or_zero(yy, self._max_vals[1])
-
-        ultra_verbose = False
-        if __debug__ and ultra_verbose:  # TODO: switch off
-            print(fretting.features)
-            print(' -> ', dict(zip(self._target_names,
-                                   self._model.predict(xx)[0] * self._feature_mask * self._max_vals[1])))
 
         # Get cost as prediction loss from model
         cost = self._model.evaluate(xx, yy, verbose=0)
@@ -377,7 +380,7 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
 
         return xx, yy
 
-    def train(self, num_epochs: int=10, train_relative: float=0.95):
+    def train(self, num_epochs: int = 10, train_relative: float = 0.95):
         """
         Train the model -- only do this once, load the weights afterwards
         """

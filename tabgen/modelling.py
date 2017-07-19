@@ -627,7 +627,7 @@ class ChordFretting:
 
     def _update_cost(self, force: bool=False) -> None:
         if force or self._cost is None:
-            # zero join cost trick for repetition of chords TODO: write about
+            # zero join cost trick for repetition of chords
             # and zero cost for rests
             if self == self.previous \
                     or len(self._note_frettings) == 0:
