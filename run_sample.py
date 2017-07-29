@@ -5,15 +5,16 @@ from tabgen import modelling
 # import subprocess
 
 input_files = [
-    'Bach_Goes_to_Town.mscz',
-    '220388 - Green Day - American Idiot (guitar pro).gpx.mscx'
+    # 'Bach_Goes_to_Town.mscz',
+    '220388 - Green Day - American Idiot (guitar pro).gpx.mscx',
+    # 'riff.mscx'
 ]
 input_files = [os.path.join(VALIDATION_INPUT_TAB_PATH, input_file) for input_file in input_files]
-# input_files = ['E:\\Dokumente\\MSc Data Science\\_MSC\\dev\\tabgen\\data\\riff.mscx']
 
 # config
-evaluator = evaluation.LSTMChordFrettingEvaluator()
+# evaluator = evaluation.LSTMChordFrettingEvaluator()
 # evaluator = evaluation.DummyFrettingEvaluator()
+evaluator = evaluation.DistanceChordFrettingEvaluator(1)  # 2 = euclidean
 
 pruning = modelling.PruningConfiguration(
     candidate_beam_width=0.5, max_candidates=3,

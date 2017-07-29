@@ -34,7 +34,11 @@ TRAINING_INPUT_TAB_PATH = os.path.join(DATA_PATH, 'training_input')
 VALIDATION_INPUT_TAB_PATH = os.path.join(DATA_PATH, 'evaluation_input')
 OUTPUT_TAB_PATH = os.path.join(DATA_PATH, 'evaluation_output')
 
-CHORDS_AS_NOTES = False  # TODO: new chord evaulation by comparing notes -- test & doc!
+HEURISTIC_PREFILTER = True  # TODO: pre-filtering
+HEURISTIC_MAX_FRETS = 4  # max fret range (finger spread) within a chord
+HEURISTIC_MAX_FINGERS = 4  # max number of different frets (i.e. fingers, considering barre)
+
+CHORDS_AS_NOTES = True  # TODO: new chord evaulation by comparing notes -- test & doc!
 
 # DEBUG OPTIONS
 TRACK_PERFORMANCE = False  # print runtime information to the console
@@ -68,18 +72,6 @@ class FeatureConfiguration(object):
         (pitch_descriptors * 8) +
         (pitch_sparse * (pitch_sparse_max - pitch_sparse_min + 1))
     ) * (1 + delta)  # *2 if using delta features
-    # TODO: add normalised features: -466--- = 466---
-    # --> do NOT include in prev_ and delta_ (?) as the distances will be messed up!
-    # TODO: transpose to one tuning / add tuning as feature (e.g. deviation from standard tuning? e.g. -2, 0,... for D
-
-    # TODO: evaluation: original tab vs generated tab vs. sheet music vs baseline tab
-    # --> what can you actually play? rate!
-
-    # TODO: actual  note  durations --> report
-    # TODO: masked MSE custom loss function --> report
-
-    # TODO: for chords: sum of distances to the centroid (mean)
-    # TODO: physical distances?
 
 # sanity check: directories
 assert os.path.isdir(ROOT_PATH)
@@ -114,10 +106,29 @@ assert type(FeatureConfiguration.max_depth) is int \
 # % physical distance to prev as feature
 
 
-raise NotImplementedError()
+# raise NotImplementedError()
 # TODO: cost seems inconsistent (original vs. generated -- try big examples!)
 # TODO: cost of generated sometimes much higher than original --> why?
 # TODO: do empty strings behave strange? i.e. pull notes down (?)
 # TODO: try super simple version for notes only (string, fret, pitch, only standard tuning) --
 #       probably needs detailed 1-hot-encoding
+#       also, treat chords as ascending arpeggios like tuohy2006evolved
 # TODO: heuristic pre-pruning in ChordFretting (range <= 4)
+# TODO: only string / only fret as prediction target?
+# TODO: delta: fret movement (& string?), local stuff normalised to fret 1
+
+# TODO: custom cost function as distance on the fretboard??
+# TODO: relative cost & write up (fancy name?)
+# TODO: do chords vertically?? tuohy2006evolved
+# TODO: add normalised features: -466--- = 466---
+# --> do NOT include in prev_ and delta_ (?) as the distances will be messed up!
+# TODO: transpose to one tuning / add tuning as feature (e.g. deviation from standard tuning? e.g. -2, 0,... for D
+
+# TODO: evaluation: original tab vs generated tab vs. sheet music vs baseline tab
+# --> what can you actually play? rate!
+
+# TODO: actual  note  durations --> report
+# TODO: masked MSE custom loss function --> report
+
+# TODO: for chords: sum of distances to the centroid (mean)
+# TODO: physical distances?

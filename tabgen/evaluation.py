@@ -83,6 +83,32 @@ class BaselineChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         return cost
 
 
+class DistanceChordFrettingEvaluator(ChordFrettingEvaluatorBase):
+    """
+    only care for the distance
+    power: k-distance (1 for manhattan, 2 for euclidean, ...)
+    """
+    def __init__(self, power=2):
+        ChordFrettingEvaluatorBase.__init__(self, 'distance_{}'.format(power))
+        assert type(power) is int
+        self._power = power
+
+    def __str__(self) -> str:
+        return 'DistanceChordFrettingEvaluator({})'.format(self._power)
+
+    __repr__ = __str__
+
+    def evaluate(self, fretting):
+        prev_string = fretting.previous.features['string_mean']
+        prev_fret = fretting.previous.features['fret_mean']
+        if prev_fret == 0.0 and prev_string == 0.0:
+            return 0.0
+        return pow(
+            pow(abs(fretting.features['string_mean'] - prev_string), self._power) +
+            pow(abs(fretting.features['fret_mean'] - prev_fret), self._power)
+            , 1.0 / self._power)
+
+
 # TODO: fix regression model
 class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     """

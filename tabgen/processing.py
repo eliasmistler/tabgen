@@ -449,7 +449,7 @@ class FrettingGenerator:
                     print('=== INSTRUMENT:', parser.get_instrument_name(instrument_id), '===')
                     print('ORIGINAL TAB:')
                     sequence_original.to_ascii_tab(string_config, do_print=True, n_first=30)
-                    print('Cost: {}'.format(sequence_original.cost))
+                    print('Cost: {}'.format(sequence_original.cost / len(sequence_original)))
 
                 # solve
                 try:
@@ -472,7 +472,7 @@ class FrettingGenerator:
                 if verbose >= 2:
                     print('\nGENERATED TAB:')
                     sequence_generated.to_ascii_tab(string_config, do_print=True, n_first=30)
-                    print('Cost: {}'.format(sequence_generated.cost))
+                    print('Cost: {}'.format(sequence_generated.cost / len(sequence_generated)))
                     print('Accuracy: {}'.format(accuracy))
 
                 # write back to parser for writing new file

@@ -75,6 +75,14 @@ class StringConfiguration(StringConfigurationBase):
     def num_strings(self) -> int:
         return len(self._pitches)
 
+    @property
+    def min_pitch(self) -> int:
+        return min(self._pitches).pitch
+
+    @property
+    def max_pitch(self) -> int:
+        return max(self._pitches).pitch + self.num_frets
+
     def __eq__(self, other) -> bool:
         if not isinstance(other, StringConfiguration):
             return False
@@ -399,7 +407,7 @@ class Chord:
 
         t_start = time()
 
-        frettings = []
+        chord_frettings = []
         # caching path
         s_eval = str(evaluator)
         s_config = str(string_config)
@@ -421,10 +429,10 @@ class Chord:
             # found in cache
             else:
                 # need to clone (depedencies!)
-                frettings = [ff.clone() for ff in Chord._cache[s_eval][s_config][s_chord]]
+                chord_frettings = [ff.clone() for ff in Chord._cache[s_eval][s_config][s_chord]]
 
         # not in cache --> create and insert into cache
-        if len(frettings) == 0:
+        if len(chord_frettings) == 0:
 
             # too many pitches to play
             assert len(string_config.string_pitches) >= len(self._pitches), \
@@ -432,36 +440,45 @@ class Chord:
                     self._pitches, string_config.string_pitches, string_config.num_frets)
 
             # first, get all possible frettings for the single notes
-            single_frettings = dict([(pitch, pitch.get_note_frettings(string_config)) for pitch in self._pitches])
+            note_frettings_dict = dict([(pitch, pitch.get_note_frettings(string_config)) for pitch in self._pitches])
 
             # generate all possible chord frettings
             # ... starting from all possibilities of the first pitch
-            frettings = [[ff] for ff in single_frettings[self._pitches[0]]]
+            chord_frettings = [[ff] for ff in note_frettings_dict[self._pitches[0]]]
 
             # ... then adding all valid possibilities for the next pitches
             for pitch in self._pitches[1:]:
 
                 # concatenate every possible next note fretting
                 # to every fretting found for previous notes
-                frettings_new = []
-                for singleFretting in single_frettings[pitch]:
-                    for fretting in frettings:
+                chord_frettings_new = []
+                for note_fretting in note_frettings_dict[pitch]:
+                    for chord_fretting in chord_frettings:
                         # check if string already used
-                        if singleFretting.string not in [ff.string for ff in fretting]:
-                            frettings_new.append(fretting + [singleFretting])
-                frettings = frettings_new
+                        if note_fretting.string not in [nf.string for nf in chord_fretting]:
+                            chord_frettings_new.append(chord_fretting + [note_fretting])
+                chord_frettings = chord_frettings_new
 
-            frettings = [
+            # heuristic filtering
+            if HEURISTIC_PREFILTER:
+                chord_frettings = [
+                    cf for cf in chord_frettings
+                    if max([nf.fret for nf in cf]) - min([nf.fret for nf in cf]) <= HEURISTIC_MAX_FRETS
+                    and len(set([nf.fret for nf in cf])) <= HEURISTIC_MAX_FINGERS
+                ]
+
+            # wrap in class
+            chord_frettings = [
                 ChordFretting(self._duration, sorted(ff, key=lambda x: x.string), evaluator, prev, next_pitches)
-                for ff in frettings
+                for ff in chord_frettings
             ]
 
             # add entry to cache
             if CACHING:
                 # need to clone (depedencies!)
-                Chord._cache[s_eval][s_config][s_chord] = [ff.clone() for ff in frettings]
+                Chord._cache[s_eval][s_config][s_chord] = [ff.clone() for ff in chord_frettings]
 
-        if len(frettings) == 0:
+        if len(chord_frettings) == 0:
             raise NoValidFrettingException(self, string_config)
         # assert len(frettings) > 0, \
         #   'No fretting could be found for {} with configuration {}'.format(self, string_config)
@@ -470,15 +487,15 @@ class Chord:
         if pruning_config is not None and evaluator is not None:
 
             # beam pruning
-            costs = [fretting.cost for fretting in frettings]
+            costs = [fretting.cost for fretting in chord_frettings]
 
             cost_limit = min(costs) + np.std(costs) + pruning_config.candidate_beam_width * np.std(costs)
-            frettings = sorted([fretting for fretting in frettings if fretting.cost <= cost_limit],
+            chord_frettings = sorted([fretting for fretting in chord_frettings if fretting.cost <= cost_limit],
                                key=lambda x: x.cost)
 
             # max candidate pruning
-            if len(frettings) > pruning_config.max_candidates > 0:
-                frettings = frettings[:pruning_config.max_candidates]
+            if len(chord_frettings) > pruning_config.max_candidates > 0:
+                chord_frettings = chord_frettings[:pruning_config.max_candidates]
 
         t_end = time()
         if TRACK_PERFORMANCE:
@@ -492,7 +509,7 @@ class Chord:
                     (1.0 - 1.0 / Chord.__fret_count__) * Chord.__fret_avg_time__\
                     + (1.0 / Chord.__fret_count__) * t
 
-        return frettings
+        return chord_frettings
 
     def __del__(self):
         if TRACK_PERFORMANCE:
@@ -633,13 +650,18 @@ class ChordFretting:
                     or len(self._note_frettings) == 0:
                 self._cost = 0.0
             else:
-                self._cost = self._evaluator.evaluate(self)
 
+                # split chord into single notes if CHORDS_AS_NOTES=True
                 if CHORDS_AS_NOTES and len(self) > 1:
+                    self._cost = 0.0
+                    prev = self._prev
                     for note_fretting in self._note_frettings:
                         chord_fretting = ChordFretting(self.duration, [note_fretting], self._evaluator,
-                                                       self._prev, self._next_pitches)
+                                                       prev, self._next_pitches)
                         self._cost += chord_fretting.cost
+                        prev = chord_fretting
+                else:
+                    self._cost = self._evaluator.evaluate(self)
 
     def _extract_features(self) -> None:
         """
