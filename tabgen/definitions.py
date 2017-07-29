@@ -19,8 +19,6 @@ from subprocess import call
 from .base import *
 
 
-# TODO: read idea text files & follow
-
 # PATHS
 ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.pardir))
 DATA_PATH = os.path.join(ROOT_PATH, 'data')
@@ -34,7 +32,7 @@ TRAINING_INPUT_TAB_PATH = os.path.join(DATA_PATH, 'training_input')
 VALIDATION_INPUT_TAB_PATH = os.path.join(DATA_PATH, 'evaluation_input')
 OUTPUT_TAB_PATH = os.path.join(DATA_PATH, 'evaluation_output')
 
-HEURISTIC_PREFILTER = True  # TODO: pre-filtering
+HEURISTIC_PREFILTER = True
 HEURISTIC_MAX_FRETS = 4  # max fret range (finger spread) within a chord
 HEURISTIC_MAX_FINGERS = 4  # max number of different frets (i.e. fingers, considering barre)
 
@@ -101,25 +99,21 @@ assert type(FeatureConfiguration.max_depth) is int \
     and type(FeatureConfiguration.descriptors) is bool \
     and type(FeatureConfiguration.num_strings) is int
 
-# lots of stuff TODO:
-# % space (length) of frets as features
-# % physical distance to prev as feature
-
-
 # raise NotImplementedError()
 # TODO: cost seems inconsistent (original vs. generated -- try big examples!)
 # TODO: cost of generated sometimes much higher than original --> why?
+
 # TODO: do empty strings behave strange? i.e. pull notes down (?)
+
 # TODO: try super simple version for notes only (string, fret, pitch, only standard tuning) --
 #       probably needs detailed 1-hot-encoding
 #       also, treat chords as ascending arpeggios like tuohy2006evolved
-# TODO: heuristic pre-pruning in ChordFretting (range <= 4)
 # TODO: only string / only fret as prediction target?
-# TODO: delta: fret movement (& string?), local stuff normalised to fret 1
+# TODO: train network on vertical chord structure if evaluating like this
 
+# TODO: delta: fret movement (& string?), local stuff normalised to fret 1
 # TODO: custom cost function as distance on the fretboard??
 # TODO: relative cost & write up (fancy name?)
-# TODO: do chords vertically?? tuohy2006evolved
 # TODO: add normalised features: -466--- = 466---
 # --> do NOT include in prev_ and delta_ (?) as the distances will be messed up!
 # TODO: transpose to one tuning / add tuning as feature (e.g. deviation from standard tuning? e.g. -2, 0,... for D
@@ -127,8 +121,6 @@ assert type(FeatureConfiguration.max_depth) is int \
 # TODO: evaluation: original tab vs generated tab vs. sheet music vs baseline tab
 # --> what can you actually play? rate!
 
-# TODO: actual  note  durations --> report
-# TODO: masked MSE custom loss function --> report
 
-# TODO: for chords: sum of distances to the centroid (mean)
+# TODO: for chords: sum of distances to the centroid (mean) + other heuristics as features?
 # TODO: physical distances?

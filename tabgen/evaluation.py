@@ -99,13 +99,25 @@ class DistanceChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     __repr__ = __str__
 
     def evaluate(self, fretting):
+        string = fretting.features['string_mean']
         prev_string = fretting.previous.features['string_mean']
+        fret = fretting.features['fret_mean']
         prev_fret = fretting.previous.features['fret_mean']
-        if prev_fret == 0.0 and prev_string == 0.0:
-            return 0.0
+
+        # if coming from empty fret / rest, there is no cost!
+        if fret == 0.0 or prev_fret == 0.0:
+            delta_fret = 0.0
+        else:
+            delta_fret = abs(fret - prev_fret)
+
+        if string == 0.0 or prev_string == 0.0:
+            delta_string = 0.0
+        else:
+            delta_string = abs(string - prev_string)
+
         return pow(
-            pow(abs(fretting.features['string_mean'] - prev_string), self._power) +
-            pow(abs(fretting.features['fret_mean'] - prev_fret), self._power)
+            pow(delta_fret, self._power) +
+            pow(delta_string, self._power)
             , 1.0 / self._power)
 
 

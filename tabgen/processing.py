@@ -232,11 +232,12 @@ class MuseScoreXMLParser:
                             )
                             for note in xml_notes]
                         chord_fretting = tabgen.modelling.ChordFretting(
-                            duration, note_frettings, self._evaluator)
+                            duration, note_frettings, self._evaluator, None,
+                            [], self.get_string_config(instrument_id))
                         chord_fretting_sequence.append(chord_fretting)
 
                 for idx in range(len(chord_fretting_sequence) - 1):
-                    chord_fretting_sequence[idx].next_pitches = chords[idx + 1].pitches  # TODO
+                    chord_fretting_sequence[idx].next_pitches = chords[idx + 1].pitches
 
                 self._instruments[instrument_id]['chord_fretting_sequence'] = chord_fretting_sequence
                 self._instruments[instrument_id]['chords'] = chords
@@ -513,13 +514,13 @@ class FrettingGenerator:
         t_start = time()
 
         # initial chord candidates
-        # TODO: start one earlier to set next_chord on hidden rest
         next_chord = tabgen.modelling.Chord(1.0, [])
         if len(chord_sequence) > 1:
             next_chord = chord_sequence[1].pitches
+
         candidate_sequences = [tabgen.modelling.ChordFrettingSequence([x]) for x in
                                chord_sequence[0].get_chord_frettings(
-                                   string_config, self._evaluator, self._pruning_config, next_chord, None)]
+                                   string_config, self._evaluator, self._pruning_config, next_chord, None)]   # TODO
 
         # subsequent chords
         for idx, chord in tqdm(enumerate(chord_sequence[1:]), desc='solving', unit='chord', initial=1,

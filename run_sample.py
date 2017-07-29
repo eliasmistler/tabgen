@@ -5,9 +5,9 @@ from tabgen import modelling
 # import subprocess
 
 input_files = [
+    'riff.mscx'
     # 'Bach_Goes_to_Town.mscz',
-    '220388 - Green Day - American Idiot (guitar pro).gpx.mscx',
-    # 'riff.mscx'
+    # '220388 - Green Day - American Idiot (guitar pro).gpx.mscx',
 ]
 input_files = [os.path.join(VALIDATION_INPUT_TAB_PATH, input_file) for input_file in input_files]
 

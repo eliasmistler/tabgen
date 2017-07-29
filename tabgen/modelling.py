@@ -403,7 +403,7 @@ class Chord:
 
         # no pitch -- empty fretting
         if len(self._pitches) == 0:
-            return [ChordFretting(self._duration, [], evaluator, prev, next_pitches)]
+            return [ChordFretting(self._duration, [], evaluator, prev, next_pitches, string_config)]
 
         t_start = time()
 
@@ -469,7 +469,8 @@ class Chord:
 
             # wrap in class
             chord_frettings = [
-                ChordFretting(self._duration, sorted(ff, key=lambda x: x.string), evaluator, prev, next_pitches)
+                ChordFretting(self._duration, sorted(ff, key=lambda x: x.string),
+                              evaluator, prev, next_pitches, string_config)
                 for ff in chord_frettings
             ]
 
@@ -491,7 +492,7 @@ class Chord:
 
             cost_limit = min(costs) + np.std(costs) + pruning_config.candidate_beam_width * np.std(costs)
             chord_frettings = sorted([fretting for fretting in chord_frettings if fretting.cost <= cost_limit],
-                               key=lambda x: x.cost)
+                                     key=lambda x: x.cost)
 
             # max candidate pruning
             if len(chord_frettings) > pruning_config.max_candidates > 0:
@@ -539,7 +540,8 @@ class ChordFretting:
     _empty_fretting = None
 
     def __init__(self, duration: float, note_frettings: list, evaluator: ChordFrettingEvaluatorBase,
-                 previous_chord_fretting: 'ChordFretting'=None, next_pitches: list=None):
+                 previous_chord_fretting: typing.Optional['ChordFretting'], next_pitches: list,
+                 string_config: StringConfigurationBase):
         """
         :param duration: duration as fracture of whole notes (e.g. 0.25 for quarter note)
         :type duration: float
@@ -556,6 +558,7 @@ class ChordFretting:
         # make sure no string is used multiple times
         strings = [nf.string for nf in note_frettings]
         assert isinstance(evaluator, ChordFrettingEvaluatorBase)
+        assert isinstance(string_config, StringConfigurationBase)
         assert previous_chord_fretting is None or isinstance(previous_chord_fretting, ChordFretting)
 
         self._features = {}
@@ -581,6 +584,7 @@ class ChordFretting:
         self._note_frettings = sorted(note_frettings, key=lambda x: x.string)
         self._next_pitches = []  # create attribute ...
         self.next_pitches = next_pitches  # ... then call setter
+        self._string_config = string_config
         self._evaluator = evaluator
         self._prev = previous_chord_fretting
 
@@ -616,20 +620,22 @@ class ChordFretting:
         :return: copy of self
         :rtype: ChordFretting
         """
-        return ChordFretting(self.duration, self.note_frettings, self._evaluator, self.previous, self._next_pitches)
+        return ChordFretting(self.duration, self.note_frettings, self._evaluator,
+                             self.previous, self._next_pitches, self._string_config)
 
     @property
     def previous(self) -> 'ChordFretting':
         if self._prev is None:
             # create empty fretting as a "terminal state" (to use instead of None as previous)
             if type(self)._empty_fretting is None:
-                type(self)._empty_fretting = ChordFretting(1.0, [], self._evaluator)
+                type(self)._empty_fretting = ChordFretting(1.0, [], self._evaluator, None, [], self._string_config)
                 type(self)._empty_fretting.previous = type(self)._empty_fretting
 
             # no previous chord frettings --> use 1 bar rest as default "previous"
-            return type(self)._empty_fretting
-        else:
-            return self._prev
+            self._prev = ChordFretting(1.0, [], self._evaluator, type(self)._empty_fretting,
+                                       self.get_chord().pitches, self._string_config)
+        # noinspection PyTypeChecker
+        return self._prev
 
     @previous.setter
     def previous(self, previous_chord_fretting: 'ChordFretting') -> None:
@@ -657,7 +663,7 @@ class ChordFretting:
                     prev = self._prev
                     for note_fretting in self._note_frettings:
                         chord_fretting = ChordFretting(self.duration, [note_fretting], self._evaluator,
-                                                       prev, self._next_pitches)
+                                                       prev, self._next_pitches, self._string_config)
                         self._cost += chord_fretting.cost
                         prev = chord_fretting
                 else:
@@ -763,7 +769,7 @@ class ChordFretting:
             # set pitches
             for pitch in list(self._next_pitches):
                 if FeatureConfiguration.pitch_sparse_min <= pitch.pitch <= FeatureConfiguration.pitch_sparse_max:
-                    pitch_counts[pitch.pitch] += 1  # TODO: = 1 or += 1
+                    pitch_counts[pitch.pitch] += 1
                 else:
                     warnings.warn('Pitch out of observed range: {} (Range {}-{})'.format(
                         pitch.pitch, FeatureConfiguration.pitch_sparse_min, FeatureConfiguration.pitch_sparse_max
@@ -771,7 +777,7 @@ class ChordFretting:
 
             pitch_counts = dict(zip(['next_has_pitch_{}'.format(kk)
                                      for kk in pitch_counts], pitch_counts.values()))
-            self._features.update(pitch_counts)  # TODO: refactor
+            self._features.update(pitch_counts)
 
     def _add_previous_features(self) -> None:
         """
@@ -867,11 +873,8 @@ class ChordFretting:
     def to_tuple_list(self) -> list:
         return [note_fretting.to_tuple() for note_fretting in self.note_frettings]
 
-    def get_chord(self, string_config: StringConfigurationBase) -> Chord:
-        # sanity check
-        assert isinstance(string_config, StringConfigurationBase), \
-            '{} is not of type StringConfigurationBase!'.format(string_config)
-        return Chord(self._duration, [fretting.get_pitch(string_config) for fretting in self.note_frettings])
+    def get_chord(self) -> Chord:
+        return Chord(self._duration, [fretting.get_pitch(self._string_config) for fretting in self.note_frettings])
 
     @property
     def note_frettings(self) -> list:
@@ -965,7 +968,6 @@ class ChordFrettingSequence:
         assert isinstance(string_config, StringConfigurationBase)
         assert isinstance(evaluator, ChordFrettingEvaluatorBase)
 
-        # TODO: hidden rest -- next pitches
         previous = None
         if len(self) > 0:
             previous = self[len(self) - 1]
