@@ -520,7 +520,7 @@ class FrettingGenerator:
 
         candidate_sequences = [tabgen.modelling.ChordFrettingSequence([x]) for x in
                                chord_sequence[0].get_chord_frettings(
-                                   string_config, self._evaluator, self._pruning_config, next_chord, None)]   # TODO
+                                   string_config, self._evaluator, self._pruning_config, next_chord, None)]
 
         # subsequent chords
         for idx, chord in tqdm(enumerate(chord_sequence[1:]), desc='solving', unit='chord', initial=1,

@@ -557,6 +557,7 @@ class ChordFretting:
             assert isinstance(note_fretting, NoteFretting), 'Not a NoteFretting: {}'.format(note_fretting)
         # make sure no string is used multiple times
         strings = [nf.string for nf in note_frettings]
+        frets = [nf.fret for nf in note_frettings]
         assert isinstance(evaluator, ChordFrettingEvaluatorBase)
         assert isinstance(string_config, StringConfigurationBase)
         assert previous_chord_fretting is None or isinstance(previous_chord_fretting, ChordFretting)
@@ -566,6 +567,12 @@ class ChordFretting:
 
         if sorted(strings) != sorted(list(set(strings))):
             raise InvalidFrettingException('duplicate use of string', note_frettings)
+        if len(strings) > 0 and len(string_config.string_pitches) < max(strings):
+            raise InvalidFrettingException(
+                'String {} not in StringConfigurationBase {}!'.format(max(strings), string_config), max(strings))
+        if len(frets) > 0 and string_config.num_frets < max(frets):
+            raise InvalidFrettingException(
+                'Fret {} not reachable in StringConfigurationBase {}!'.format(max(frets), string_config), max(frets))
 
         # create zero-vector for filling up later
         if ChordFretting._descriptor_features_zero == {}:
@@ -587,6 +594,17 @@ class ChordFretting:
         self._string_config = string_config
         self._evaluator = evaluator
         self._prev = previous_chord_fretting
+
+    def to_sequential(self):
+        prev = self._prev
+        chord_frettings = []
+        for note_fretting in self._note_frettings:
+            chord_fretting = ChordFretting(self.duration, [note_fretting], self._evaluator,
+                                           prev, self._next_pitches, self._string_config)
+            prev = chord_fretting
+            chord_frettings.append(chord_fretting)
+
+        return ChordFrettingSequence(chord_frettings)
 
     @property
     def next_pitches(self):
@@ -659,13 +677,7 @@ class ChordFretting:
 
                 # split chord into single notes if CHORDS_AS_NOTES=True
                 if CHORDS_AS_NOTES and len(self) > 1:
-                    self._cost = 0.0
-                    prev = self._prev
-                    for note_fretting in self._note_frettings:
-                        chord_fretting = ChordFretting(self.duration, [note_fretting], self._evaluator,
-                                                       prev, self._next_pitches, self._string_config)
-                        self._cost += chord_fretting.cost
-                        prev = chord_fretting
+                    self._cost = self.to_sequential().cost
                 else:
                     self._cost = self._evaluator.evaluate(self)
 
@@ -688,55 +700,72 @@ class ChordFretting:
         # set the next_pitch features
         self._update_next_pitch_features()
 
-        # use entities X descriptors (pd.describe()) as features
-        if FeatureConfiguration.descriptors:
-
-            # empty (=rest) --> fill all zeroes
-            if len(self._note_frettings) == 0:
-                self._features.update(type(self)._descriptor_features_zero)
-
+        # vertical chord handling
+        # keep all features for len > 1 (for temporary handling of previous.. TODO?)
+        if CHORDS_AS_NOTES and len(self) <= 1:
+            if len(self) == 0:
+                self._features.update(dict(
+                    string_mean=0.0,
+                    fret_mean=0.0,
+                ))
             else:
-                for entity in ChordFretting._entity_names:
-                    items = [nf.to_dict()[entity] for nf in self._note_frettings]
-                    # run _descriptor_functions
-                    for descriptor in self._descriptor_functions:
-                        self._features['{}_{}'.format(entity, descriptor)] = \
-                            self._descriptor_functions[descriptor](items)
+                self._features.update(dict(
+                    string_mean=self._note_frettings[0].string,
+                    fret_mean=self._note_frettings[0].fret,
+                ))
 
-        if FeatureConfiguration.string_details:
-            # supporting 6 (?) strings, remember all details
-            # create all empty first
-            for string in range(1, FeatureConfiguration.num_strings+1):
-                self._features['string{}_played'.format(string)] = False
-                self._features['string{}_fret'.format(string)] = 0
-            # then add actually played ones
-            for note_fretting in self._note_frettings:
-                if note_fretting.string <= FeatureConfiguration.num_strings:
-                    self._features['string{}_played'.format(note_fretting.string)] = True
-                    self._features['string{}_fret'.format(note_fretting.string)] = note_fretting.fret
+        else:
+            # use entities X descriptors (pd.describe()) as features
+            if FeatureConfiguration.descriptors:
 
-        if FeatureConfiguration.fret_details:
-            # supporting 24 (?) frets, count how often each fret is played
-            # create all empty first
-            for fret in range(FeatureConfiguration.num_frets+1):
-                self._features['fret{}_played'.format(fret)] = 0
-            # then add actually played ones
-            for note_fretting in self._note_frettings:
-                if note_fretting.fret <= FeatureConfiguration.num_frets:
-                    self._features['fret{}_played'.format(note_fretting.fret)] += 1
+                # empty (=rest) --> fill all zeroes
+                if len(self._note_frettings) == 0:
+                    self._features.update(type(self)._descriptor_features_zero)
 
-        if FeatureConfiguration.detail_matrix:
-            # single fret features (complete boolean map)
-            # create all empty first
-            for string in range(1, FeatureConfiguration.num_strings+1):
+                else:
+                    for entity in ChordFretting._entity_names:
+                        items = [nf.to_dict()[entity] for nf in self._note_frettings]
+                        # run _descriptor_functions
+                        for descriptor in self._descriptor_functions:
+                            self._features['{}_{}'.format(entity, descriptor)] = \
+                                self._descriptor_functions[descriptor](items)
+
+            if FeatureConfiguration.string_details:
+                # supporting 6 (?) strings, remember all details
+                # create all empty first
+                for string in range(1, FeatureConfiguration.num_strings+1):
+                    self._features['string{}_played'.format(string)] = False
+                    self._features['string{}_fret'.format(string)] = 0
+                # then add actually played ones
+                for note_fretting in self._note_frettings:
+                    if note_fretting.string <= FeatureConfiguration.num_strings:
+                        self._features['string{}_played'.format(note_fretting.string)] = True
+                        self._features['string{}_fret'.format(note_fretting.string)] = note_fretting.fret
+
+            if FeatureConfiguration.fret_details:
+                # supporting 24 (?) frets, count how often each fret is played
+                # create all empty first
                 for fret in range(FeatureConfiguration.num_frets+1):
-                    self._features['string{}_fret{:02n}_played'.format(string, fret)] = False
-            # then add actually played ones
-            for note_fretting in self._note_frettings:
-                if note_fretting.string <= FeatureConfiguration.num_strings \
-                        and note_fretting.fret <= FeatureConfiguration.num_frets:
-                    self._features['string{}_fret{:02n}_played'.format(note_fretting.string, note_fretting.fret)] = True
+                    self._features['fret{}_played'.format(fret)] = 0
+                # then add actually played ones
+                for note_fretting in self._note_frettings:
+                    if note_fretting.fret <= FeatureConfiguration.num_frets:
+                        self._features['fret{}_played'.format(note_fretting.fret)] += 1
 
+            if FeatureConfiguration.detail_matrix:
+                # single fret features (complete boolean map)
+                # create all empty first
+                for string in range(1, FeatureConfiguration.num_strings+1):
+                    for fret in range(FeatureConfiguration.num_frets+1):
+                        self._features['string{}_fret{:02n}_played'.format(string, fret)] = False
+                # then add actually played ones
+                for note_fretting in self._note_frettings:
+                    if note_fretting.string <= FeatureConfiguration.num_strings \
+                            and note_fretting.fret <= FeatureConfiguration.num_frets:
+                        self._features['string{}_fret{:02n}_played'.format(
+                            note_fretting.string, note_fretting.fret)] = True
+
+        self._add_heuristic_features()
         self._add_previous_features()
         self._cost = None  # empty cost, so it has to be recalculated next time!
 
@@ -806,6 +835,69 @@ class ChordFretting:
                 if FeatureConfiguration.prev and not feature_name.startswith('prev'):
                     self._features['prev{}_{}'.format(current_depth, feature_name)] = \
                         prev_x.features[feature_name]
+
+    def _add_heuristic_features(self) -> None:
+        if FeatureConfiguration.heuristics:
+            self._features.update(dict(
+                heuristic_distance_move=self.heuristic_distance_move(1),
+                heuristic_distance_move_fret=self.heuristic_distance_move(1, True),
+                heuristic_distance_steady=self.calc_distance_steady(),
+                heuristic_distance_steady_fret=self.calc_distance_steady(1, True),
+                heuristic_skipped_strings=self.calc_skipped_strings(),
+                heuristic_all_zero=int(all([nf.fret==0 for nf in self._note_frettings])),
+            ))
+
+    def calc_skipped_strings(self) -> int:
+        strings = [nf.string for nf in self._note_frettings]
+        if len(strings) == 0:
+            return 0
+        return max(strings) - min(strings) + 1 - len(strings)
+
+    def calc_distance_steady(self, minkowski_order=2, fret_only=False):
+        """
+        sum of all combinations of note fretting distances
+        """
+        dd = 0.0
+        for idx1, nf1 in enumerate(self._note_frettings):
+            for nf2 in self._note_frettings[idx1 + 1:]:
+                if fret_only:
+                    dd += self.minkowski_distance(
+                        nf1.fret, nf2.fret, minkowski_order=minkowski_order
+                    )
+                else:
+                    dd += self.minkowski_distance(
+                        nf1.fret, nf2.fret, nf1.string, nf2.string, minkowski_order=minkowski_order
+                    )
+        return dd
+
+    def heuristic_distance_move(self, minkowski_order=2, fret_only=False):
+        string = self.features['string_mean']
+        prev_string = self.previous.features['string_mean']
+        fret = self.features['fret_mean']
+        prev_fret = self.previous.features['fret_mean']
+
+        if fret_only:
+            return self.minkowski_distance(fret, prev_fret, minkowski_order=minkowski_order)
+        else:
+            return self.minkowski_distance(fret, prev_fret, string, prev_string, minkowski_order=minkowski_order)
+
+    @staticmethod
+    def minkowski_distance(fret1, fret2, string1=0.0, string2=0.0, minkowski_order=2):
+        # if coming from empty fret / rest, there is no cost!
+        if fret1 == 0.0 or fret2 == 0.0:
+            delta_fret = 0.0
+        else:
+            delta_fret = abs(fret1 - fret2)
+
+        if string1 == 0.0 or string2 == 0.0:
+            delta_string = 0.0
+        else:
+            delta_string = abs(string1 - string2)
+
+        return pow(
+            pow(delta_fret, minkowski_order) +
+            pow(delta_string, minkowski_order)
+            , 1.0 / minkowski_order)
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, ChordFretting):

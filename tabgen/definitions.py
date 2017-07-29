@@ -36,7 +36,7 @@ HEURISTIC_PREFILTER = True
 HEURISTIC_MAX_FRETS = 4  # max fret range (finger spread) within a chord
 HEURISTIC_MAX_FINGERS = 4  # max number of different frets (i.e. fingers, considering barre)
 
-CHORDS_AS_NOTES = True  # TODO: new chord evaulation by comparing notes -- test & doc!
+CHORDS_AS_NOTES = False  # scan through chords vertically instead of using
 
 # DEBUG OPTIONS
 TRACK_PERFORMANCE = False  # print runtime information to the console
@@ -60,6 +60,7 @@ class FeatureConfiguration(object):
     pitch_sparse = False  # ... as sparse encoding
     pitch_sparse_min = 11
     pitch_sparse_max = 88
+    heuristics = True
     num_features_total = (
         (string_details * 2 * num_strings) +
         (fret_details * (num_frets + 1)) +
@@ -68,7 +69,8 @@ class FeatureConfiguration(object):
         (basic * 5) +  # count, duration, is_chord, is_rest, is_note
         (pitch * num_strings) +
         (pitch_descriptors * 8) +
-        (pitch_sparse * (pitch_sparse_max - pitch_sparse_min + 1))
+        (pitch_sparse * (pitch_sparse_max - pitch_sparse_min + 1)) +
+        (heuristics * 6)
     ) * (1 + delta)  # *2 if using delta features
 
 # sanity check: directories
@@ -99,28 +101,12 @@ assert type(FeatureConfiguration.max_depth) is int \
     and type(FeatureConfiguration.descriptors) is bool \
     and type(FeatureConfiguration.num_strings) is int
 
-# raise NotImplementedError()
-# TODO: cost seems inconsistent (original vs. generated -- try big examples!)
-# TODO: cost of generated sometimes much higher than original --> why?
+# TODO: custom cost function as distance on the fretboard?? -- Hamming distance???
+# TODO: only string / only fret as prediction target?
 
 # TODO: do empty strings behave strange? i.e. pull notes down (?)
-
-# TODO: try super simple version for notes only (string, fret, pitch, only standard tuning) --
-#       probably needs detailed 1-hot-encoding
-#       also, treat chords as ascending arpeggios like tuohy2006evolved
-# TODO: only string / only fret as prediction target?
-# TODO: train network on vertical chord structure if evaluating like this
-
-# TODO: delta: fret movement (& string?), local stuff normalised to fret 1
-# TODO: custom cost function as distance on the fretboard??
-# TODO: relative cost & write up (fancy name?)
-# TODO: add normalised features: -466--- = 466---
+# TODO: local stuff normalised to fret 1
+# TODO: add normalised features where -466--- = 466---
 # --> do NOT include in prev_ and delta_ (?) as the distances will be messed up!
+
 # TODO: transpose to one tuning / add tuning as feature (e.g. deviation from standard tuning? e.g. -2, 0,... for D
-
-# TODO: evaluation: original tab vs generated tab vs. sheet music vs baseline tab
-# --> what can you actually play? rate!
-
-
-# TODO: for chords: sum of distances to the centroid (mean) + other heuristics as features?
-# TODO: physical distances?

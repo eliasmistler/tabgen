@@ -5,16 +5,21 @@ from tabgen import modelling
 # import subprocess
 
 input_files = [
-    'riff.mscx'
-    # 'Bach_Goes_to_Town.mscz',
-    # '220388 - Green Day - American Idiot (guitar pro).gpx.mscx',
+    'riff.mscx',
+    'Bach_Goes_to_Town.mscz',
+    '220388 - Green Day - American Idiot (guitar pro).gpx.mscx',
 ]
 input_files = [os.path.join(VALIDATION_INPUT_TAB_PATH, input_file) for input_file in input_files]
 
 # config
-# evaluator = evaluation.LSTMChordFrettingEvaluator()
+evaluator = evaluation.LSTMChordFrettingEvaluator()
 # evaluator = evaluation.DummyFrettingEvaluator()
-evaluator = evaluation.DistanceChordFrettingEvaluator(1)  # 2 = euclidean
+# evaluator = evaluation.BaselineChordFrettingEvaluator(dict(
+#     heuristic_distance_steady=0.2,
+#     heuristic_distance_move=0.7,
+#     heuristic_skipped_strings=3,
+#     fret_mean=0.01,
+# ))
 
 pruning = modelling.PruningConfiguration(
     candidate_beam_width=0.5, max_candidates=3,

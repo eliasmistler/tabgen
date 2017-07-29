@@ -59,6 +59,7 @@ class BaselineChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     - Baseline model, using a simple heuristic:
         input weights relating to features are used to calculate
         cost = sum( weight[i] * feature[i] )
+    - can use sub heuristics (heuristic features), e.g. heuristic_distance_move
     """
 
     def __init__(self, weights: dict):
@@ -81,44 +82,6 @@ class BaselineChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         for feature_name in self._weights.keys():
             cost += self._weights[feature_name] * fretting.features[feature_name]
         return cost
-
-
-class DistanceChordFrettingEvaluator(ChordFrettingEvaluatorBase):
-    """
-    only care for the distance
-    power: k-distance (1 for manhattan, 2 for euclidean, ...)
-    """
-    def __init__(self, power=2):
-        ChordFrettingEvaluatorBase.__init__(self, 'distance_{}'.format(power))
-        assert type(power) is int
-        self._power = power
-
-    def __str__(self) -> str:
-        return 'DistanceChordFrettingEvaluator({})'.format(self._power)
-
-    __repr__ = __str__
-
-    def evaluate(self, fretting):
-        string = fretting.features['string_mean']
-        prev_string = fretting.previous.features['string_mean']
-        fret = fretting.features['fret_mean']
-        prev_fret = fretting.previous.features['fret_mean']
-
-        # if coming from empty fret / rest, there is no cost!
-        if fret == 0.0 or prev_fret == 0.0:
-            delta_fret = 0.0
-        else:
-            delta_fret = abs(fret - prev_fret)
-
-        if string == 0.0 or prev_string == 0.0:
-            delta_string = 0.0
-        else:
-            delta_string = abs(string - prev_string)
-
-        return pow(
-            pow(delta_fret, self._power) +
-            pow(delta_string, self._power)
-            , 1.0 / self._power)
 
 
 # TODO: fix regression model
@@ -375,7 +338,13 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
 
     @property
     def _feature_mask(self):
-        return np.array([int(not col.startswith('next') and not col.startswith('delta')) for col in self._target_names])
+        return np.array(
+            [int(
+             not col.startswith('next') and
+             not col.startswith('delta')) and
+             not col.startswith('heuristic')
+             for col in self._target_names]
+        )
 
     def _get_training_data(self):
 

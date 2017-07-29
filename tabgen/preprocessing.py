@@ -45,9 +45,16 @@ def extract_features(force_overwrite: bool=False, delete_mscx_afterwards: bool=F
 
         input_file = parser.mscx_file
 
-        features = [chord_fretting.features
-                    for instrument_id in parser.instrument_ids
-                    for chord_fretting in parser.get_chord_fretting_sequence(instrument_id)]
+        if CHORDS_AS_NOTES:
+            features = [note_chord_fretting.features
+                        for instrument_id in parser.instrument_ids
+                        for chord_fretting in parser.get_chord_fretting_sequence(instrument_id)
+                        for note_chord_fretting in chord_fretting.to_sequential()]
+
+        else:
+            features = [chord_fretting.features
+                        for instrument_id in parser.instrument_ids
+                        for chord_fretting in parser.get_chord_fretting_sequence(instrument_id)]
 
         target_file = os.path.join(FEATURE_FOLDER_PATH, os.path.relpath(input_file, TRAINING_INPUT_TAB_PATH) + '.csv')
         pd.DataFrame(pd.DataFrame(features).astype(np.float)).to_csv(target_file)
