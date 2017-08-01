@@ -528,12 +528,12 @@ class ChordFretting:
     _descriptor_functions = {
         'mean': np.mean,
         'std': np.std,  # if len(x) > 0 else 0,
-        'min': min,
-        '25%': lambda x: np.percentile(x, 25),
-        '50%': np.median,
-        '75%': lambda x: np.percentile(x, 75),
-        'max': max,
-        'range': lambda x: max(x) - min(x)
+        # 'min': min,
+        # '25%': lambda x: np.percentile(x, 25),
+        # '50%': np.median,
+        # '75%': lambda x: np.percentile(x, 75),
+        # 'max': max,
+        # 'range': lambda x: max(x) - min(x)
     }
     _descriptor_features_zero = {}  # create in init
     _descriptor_pitches_zero = {}  # create in init
@@ -730,6 +730,14 @@ class ChordFretting:
                             self._features['{}_{}'.format(entity, descriptor)] = \
                                 self._descriptor_functions[descriptor](items)
 
+                # calculate the correlation coefficient between frets and strings
+                items = [list(nf.to_dict().values()) for nf in self._note_frettings]
+                if len(items) <= 1 or min(np.std(items, axis=0)) == 0.0:
+                    cc = 0.0
+                else:
+                    cc = np.corrcoef(items, rowvar=False)[1, 0]
+                self._features['correlation_coefficient'] = cc
+
             if FeatureConfiguration.string_details:
                 # supporting 6 (?) strings, remember all details
                 # create all empty first
@@ -844,7 +852,7 @@ class ChordFretting:
                 heuristic_distance_steady=self.calc_distance_steady(),
                 heuristic_distance_steady_fret=self.calc_distance_steady(1, True),
                 heuristic_skipped_strings=self.calc_skipped_strings(),
-                heuristic_all_zero=int(all([nf.fret==0 for nf in self._note_frettings])),
+                heuristic_all_zero=int(all([nf.fret == 0 for nf in self._note_frettings])),
             ))
 
     def calc_skipped_strings(self) -> int:

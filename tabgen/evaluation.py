@@ -261,90 +261,86 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
     def __init__(self):
         super().__init__('lstm')
 
-        np.random.seed(1337)  # for reproducibility
-        from keras.models import Sequential
-        # from keras.backend.tensorflow_backend import tf
-        # tf.device("/cpu:0")
+        # set the source and target field names
+        self._source_names = np.array([
+            col for col in pd.read_csv(TRAINING_DATA_FILE_PATH, index_col=0, nrows=0).columns if
+            not col.startswith('prev') and
+            not col.startswith('heuristic') and
+            not col.startswith('counts_') and
+            not col.startswith('cost')
+        ])
+        assert len(self._source_names) == FeatureConfiguration.num_features_total
+        self._target_names = np.array([
+            col for col in self._source_names if
+            not col.startswith('next') and
+            not col.startswith('delta')
+        ])
 
-        path_config = os.path.join(DATA_PATH, 'lstm_config.npy')
+        self._batch_size = 128
+
+        # build the model
+        from keras.models import Sequential
+        from keras.layers import Dense, Activation, LSTM
+        self._model = Sequential([
+            LSTM(self._batch_size, return_sequences=False,
+                 input_shape=(FeatureConfiguration.max_depth, FeatureConfiguration.num_features_total)),
+            Dense(128),
+            Activation('tanh'),
+            Dense(len(self._target_names)),
+            Activation('tanh'),
+        ])
+
+        self._model.compile(
+            optimizer='adam',
+            loss='mse'
+        )
+        self._trained = False
+
+        # set paths for storing weights and normalisation factors
         self._path_maxvals = os.path.join(DATA_PATH, 'lstm_maxvals.npy')
-        self._path_targets = os.path.join(DATA_PATH, 'lstm_targets.npy')
         self._path_weights = os.path.join(DATA_PATH, 'lstm_weights.hdf')
 
-        # load model
-        model_config = list(np.load(path_config).tolist())
-        self._model = Sequential.from_config(model_config)
-        self._batch_size = model_config[0]['config']['units']
-
         # train if no weights / load existing weights
-        if not (
-            os.path.isfile(self._path_maxvals) and
-            os.path.isfile(self._path_targets) and
-            os.path.isfile(self._path_weights)
-        ):
-            print('No weights found. Training LSTM.')
-            self.train()
+        if not (os.path.isfile(self._path_maxvals) and
+                os.path.isfile(self._path_weights)):
+            print('No weights found. Train LSTM before use!')
         else:
             # load from files
             self._max_vals = np.load(self._path_maxvals)
-            self._target_names = np.load(self._path_targets)
-            self._compile_model()
             self._model.load_weights(self._path_weights)
-        assert len(self._target_names) == FeatureConfiguration.num_features_total, \
-            'Targets: {} vs. num_features: {}'.format(
-                len(self._target_names), FeatureConfiguration.num_features_total)
-
-    def _compile_model(self):
-        from keras.backend.tensorflow_backend import tf
-        tf_mask = tf.constant(dtype=tf.float32, value=self._feature_mask)
-        # loss = 'mse'
-        self._model.compile(
-            optimizer='adam',
-
-            # custom loss function: apply mask to ignore some output features
-            loss=lambda y_true, y_pred: tf.reduce_mean(tf.square(tf.multiply(tf.subtract(y_true, y_pred), tf_mask)))
-        )
-
-    def evaluate(self, fretting: ChordFretting) -> float:
-        # Evaluate the fit by comparing against a prediction from an LSTM
-        # predict current by prev
-
-        prev_x = fretting
-        dataset = []
-
-        for ii in range(FeatureConfiguration.max_depth + 1):
-            # concatenate previous feature vector
-            dataset = [np.array(
-                [prev_x.features[name] for name in self._target_names]
-            )] + dataset
-
-            # go back one step further
-            prev_x = prev_x.previous
-
-        dataset = np.array([dataset])
-        xx = dataset[:, :-1, :]
-        yy = dataset[:, -1, :] * self._feature_mask  # set NEXT features to 0 for prediction target
-
-        assert dataset.shape == (1, FeatureConfiguration.max_depth + 1, FeatureConfiguration.num_features_total)
-
-        # scale
-        xx = self.divide_or_zero(xx, self._max_vals[0])
-        yy = self.divide_or_zero(yy, self._max_vals[1])
-
-        # Get cost as prediction loss from model
-        cost = self._model.evaluate(xx, yy, verbose=0)
-
-        return cost
+            print('Weights found and loaded. LSTM ready.')
+            self._trained = True
 
     @property
-    def _feature_mask(self):
-        return np.array(
-            [int(
-             not col.startswith('next') and
-             not col.startswith('delta')) and
-             not col.startswith('heuristic')
-             for col in self._target_names]
-        )
+    def is_trained(self):
+        return self._trained
+
+    def evaluate(self, fretting: ChordFretting) -> float:
+        """
+        Evaluate the fit by comparing against a prediction from an LSTM
+        predict current by prev
+        """
+
+        # build xx from previous frettings
+        prev_x = fretting.previous
+        xx = []
+        for ii in range(1, FeatureConfiguration.max_depth + 1):
+            xx = [np.array(
+                [prev_x.features[name] for name in self._source_names]
+            )] + xx
+            prev_x = prev_x.previous
+
+        xx = self.divide_or_zero(np.array([xx])[:, ::-1, :], self._max_vals[0])
+
+        # get yy
+        yy = np.array([[fretting.features[ff] for ff in self._target_names]])
+        yy = self.divide_or_zero(yy, self._max_vals[1])
+
+        assert xx.shape == (1, FeatureConfiguration.max_depth, FeatureConfiguration.num_features_total)
+        assert yy.shape == (1, len(self._target_names))
+
+        # Get cost as prediction loss from model
+        return self._model.evaluate(xx, yy, verbose=0)
 
     def _get_training_data(self):
 
@@ -358,32 +354,25 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         )
 
         # convert prev features to numpy dataset
-
         # prev0 = current (prediction  target)
-        # remember feature names
-        self._target_names = [col for col in dataframe.columns if not col.startswith('prev')]
 
         # mask to set the "next"-features to zero in the evaluation
         # i.e. do not try to predict the next_pitch stuff!
-        yy = dataframe[self._target_names].values.astype('float32') * self._feature_mask
+        yy = dataframe[self._target_names].values.astype('float32')
 
-        # build array of prev features
-        xx = []
-        for prev_x in range(1, FeatureConfiguration.max_depth + 1):
-            cols = [col for col in dataframe.columns if col.startswith('prev{}_'.format(prev_x))]
-            xx.append(dataframe[cols].values.astype('float32'))
-
-        # switch dimensions and invert prev 1,2,3 --> 3,2,1
-        xx = np.array(xx).transpose((1, 0, 2))[:, ::-1, :]
+        xx = dataframe[self._source_names].values.astype('float32')
+        xx = xx.reshape((xx.shape[0], 1, xx.shape[1]))
+        xx = np.concatenate([
+            np.concatenate([np.zeros_like(xx[0:i]), xx[:-i, :, :]])
+            for i in range(FeatureConfiguration.max_depth, 0, -1)
+        ], axis=1)
 
         # scale & remember scaling factor
-        self._max_vals = np.array([np.max(xx, axis=0), np.max(yy, axis=0)])
+        self._max_vals = np.array([np.max(xx, axis=0).max(axis=0), np.max(yy, axis=0)])
+        np.save(self._path_maxvals, self._max_vals)  # save maxvals
+
         xx = self.divide_or_zero(xx, self._max_vals[0])
         yy = self.divide_or_zero(yy, self._max_vals[1])
-
-        # save
-        np.save(self._path_maxvals, self._max_vals)
-        np.save(self._path_targets, self._target_names)
 
         return xx, yy
 
@@ -405,23 +394,23 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         print('Train and validation sets:', x_train.shape, y_train.shape, x_valid.shape, y_valid.shape)
 
         # TRAIN
-        self._compile_model()
         self._model.fit(x_train, y_train, epochs=num_epochs, batch_size=self._batch_size, shuffle=False)
         score_train = self._model.evaluate(x_train, y_train)
-        print('\nTraining loss: {} (sqrt: {}) / {} = {} ({})'.format(
-            score_train, np.sqrt(score_train), FeatureConfiguration.num_features_total,
-            score_train / FeatureConfiguration.num_features_total,
-            np.sqrt(score_train) / FeatureConfiguration.num_features_total
+        print('\nTraining loss: {} (sqrt: {}) / {} features = {} ({})'.format(
+            score_train, np.sqrt(score_train), len(self._target_names),
+            score_train / len(self._target_names),
+            np.sqrt(score_train) / len(self._target_names)
         ))
         score_valid = self._model.evaluate(x_valid, y_valid)
-        print('\nEvaluation loss: {} (sqrt: {}) / {} = {} ({})'.format(
-            score_valid, np.sqrt(score_valid), FeatureConfiguration.num_features_total,
-            score_valid / FeatureConfiguration.num_features_total,
-            np.sqrt(score_valid) / FeatureConfiguration.num_features_total
+        print('\nEvaluation loss: {} (sqrt: {}) / {} features = {} ({})'.format(
+            score_valid, np.sqrt(score_valid), len(self._target_names),
+            score_valid / len(self._target_names),
+            np.sqrt(score_valid) / len(self._target_names)
         ))
 
         # save for later
         self._model.save_weights(self._path_weights)
+        self._trained = True
 
     @staticmethod
     def divide_or_zero(x1: np.ndarray, x2: np.ndarray) -> np.ndarray:

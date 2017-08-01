@@ -46,7 +46,7 @@ CACHING = False  # activate caching for Chord.get_chord_frettings and Pitch.get_
 # Core settings for feature generation
 class FeatureConfiguration(object):
     max_depth = 3  # depth of features (i.e. go back (max_depth) chords)
-    prev = True  # extract prev{#}_{feature}?
+    prev = True  # extract prev{#}_{feature}? TODO: get rid of this (only needed for counts as of now)
     delta = False  # extract delta_{feature}?
     string_details = False  # extract string{#}_played (bool) and string{#}_fret (int 0-24)?
     fret_details = False  # extract fret{}_played (int 0-6)
@@ -60,15 +60,15 @@ class FeatureConfiguration(object):
     pitch_sparse = False  # ... as sparse encoding
     pitch_sparse_min = 11
     pitch_sparse_max = 88
-    heuristics = True
+    heuristics = False
     num_features_total = (
         (string_details * 2 * num_strings) +
         (fret_details * (num_frets + 1)) +
         (detail_matrix * num_strings * (num_frets + 1)) +
-        (descriptors * 2 * 8) +
+        (descriptors * (2 * 2 + 1)) +
         (basic * 5) +  # count, duration, is_chord, is_rest, is_note
         (pitch * num_strings) +
-        (pitch_descriptors * 8) +
+        (pitch_descriptors * 2) +
         (pitch_sparse * (pitch_sparse_max - pitch_sparse_min + 1)) +
         (heuristics * 6)
     ) * (1 + delta)  # *2 if using delta features
@@ -101,10 +101,13 @@ assert type(FeatureConfiguration.max_depth) is int \
     and type(FeatureConfiguration.descriptors) is bool \
     and type(FeatureConfiguration.num_strings) is int
 
-# TODO: custom cost function as distance on the fretboard?? -- Hamming distance???
-# TODO: only string / only fret as prediction target?
+# TODO: for sequential chords, implement alternating directions ?
+# TODO: for sequential chords, model "is part of same chord" as extra feature
 
-# TODO: do empty strings behave strange? i.e. pull notes down (?)
+# TODO: do some individual evaluations (look closer at RNN predictions)
+
+# TODO: use heuristics in the feedforward network (they don't apply in the RNN)
+
 # TODO: local stuff normalised to fret 1
 # TODO: add normalised features where -466--- = 466---
 # --> do NOT include in prev_ and delta_ (?) as the distances will be messed up!

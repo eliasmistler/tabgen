@@ -13,6 +13,10 @@ input_files = [os.path.join(VALIDATION_INPUT_TAB_PATH, input_file) for input_fil
 
 # config
 evaluator = evaluation.LSTMChordFrettingEvaluator()
+evaluator.train(10)
+# if not evaluator.is_trained:
+#     evaluator.train(1)
+
 # evaluator = evaluation.DummyFrettingEvaluator()
 # evaluator = evaluation.BaselineChordFrettingEvaluator(dict(
 #     heuristic_distance_steady=0.2,
