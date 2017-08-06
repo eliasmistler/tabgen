@@ -19,7 +19,7 @@ import tabgen.modelling
 from .definitions import *
 
 
-class MuseScoreXMLParser:
+class Parser:
     """
     Parses MuseScoreXML and writes back to it
     Warning: not very robust, stick to files converted from Guitar Pro!
@@ -74,7 +74,7 @@ class MuseScoreXMLParser:
                 if not os.path.isfile(mscx_file_path):
                     # CONVERT TO XML
                     # by calling MuseScore portable to convert file
-                    call([MSCORE_PATH, '-o', mscx_file_path, file_path])
+                    call([Path.MSCORE, '-o', mscx_file_path, file_path])
 
                 # conversion errors
                 assert os.path.isfile(mscx_file_path), \
@@ -91,7 +91,7 @@ class MuseScoreXMLParser:
     def _find_instruments(self) -> None:
         """
         find instruments (sub routine of parse)
-        sets self._instruments as dict with string_config=... as StringConfiguration
+        sets self._instruments as dict with string_config=... as StringConfig
         """
         xml_score = self._xml_tree.getroot().find('Score')
         xml_parts = xml_score.findall('Part')
@@ -117,7 +117,7 @@ class MuseScoreXMLParser:
                 # exclude [0 0 0] etc. (e.g. drums)
                 if min(strings) > 0:
                     self._instruments[instrument_id] = dict(
-                        string_config=tabgen.modelling.StringConfiguration(strings, frets),
+                        string_config=tabgen.modelling.StringConfig(strings, frets),
                         name=name
                     )
                     self._ignored_chords[instrument_id] = 0
@@ -144,7 +144,7 @@ class MuseScoreXMLParser:
     def instrument_ids(self) -> list:
         return list(self._instruments.keys())
 
-    def get_string_config(self, instrument_id: int) -> StringConfigurationBase:
+    def get_string_config(self, instrument_id: int) -> StringConfigBase:
         return self._instruments[instrument_id]['string_config']
 
     def get_chord_fretting_sequence(self, instrument_id: int) -> tabgen.modelling.ChordFrettingSequence:
@@ -214,27 +214,46 @@ class MuseScoreXMLParser:
 
                         xml_notes = xml_chord.findall('Note')
 
-                        # Pitch View
-                        pitches = [
-                            tabgen.modelling.Pitch(
-                                pitch=int(note.find('pitch').text),
-                                fully_muted=note.find('ghost') is not None and note.find('ghost').text == '1'
-                            )
-                            for note in xml_notes]
-                        chords.append(tabgen.modelling.Chord(duration, pitches))
+                        # GET NOTES AND FRETTINGS FROM XML
+                        pitches = []
+                        note_frettings = []
+                        for note in xml_notes:
+                            pitch = int(note.find('pitch').text)
+                            string = num_strings - int(note.find('string').text)
+                            fret = int(note.find('fret').text)
+                            fully_muted = note.find('ghost') is not None and note.find('ghost').text == '1'
 
-                        # Fretting View
-                        note_frettings = [
-                            tabgen.modelling.NoteFretting(
-                                string=num_strings - int(note.find('string').text),
-                                fret=int(note.find('fret').text),
-                                fully_muted=note.find('ghost') is not None and note.find('ghost').text == '1'
+                            pitches.append(tabgen.modelling.Pitch(pitch, fully_muted))
+                            note_frettings.append(tabgen.modelling.NoteFretting(string, fret, fully_muted))
+
+                        # CONCATENATE INTO SEQUENCE
+                        if FeatureConfig.CHORDS_AS_NOTES:
+                            # handle chord as sequences of notes, modelled as 1-note-chords to keep logic in place
+                            # chord as sequence of pitches
+                            for ii, pitch in enumerate(pitches):
+                                chords.append(
+                                    tabgen.modelling.Chord(duration, [pitch], ii != 0)
+                                )
+                            # chord fretting as sequence of note frettings
+                            for ii, note_fretting in enumerate(note_frettings):
+                                chord_fretting_sequence.append(
+                                    tabgen.modelling.ChordFretting(
+                                        duration, [note_fretting], self._evaluator, None,
+                                        [], self.get_string_config(instrument_id), ii != 0
+                                    )
+                                )
+                        else:
+                            # handle chords explicitly as chords
+                            # chords
+                            chords.append(
+                                tabgen.modelling.Chord(duration, pitches, False)
                             )
-                            for note in xml_notes]
-                        chord_fretting = tabgen.modelling.ChordFretting(
-                            duration, note_frettings, self._evaluator, None,
-                            [], self.get_string_config(instrument_id))
-                        chord_fretting_sequence.append(chord_fretting)
+                            # chord frettings
+                            chord_fretting_sequence.append(
+                                tabgen.modelling.ChordFretting(
+                                    duration, note_frettings, self._evaluator, None,
+                                    [], self.get_string_config(instrument_id), False)
+                            )
 
                 for idx in range(len(chord_fretting_sequence) - 1):
                     chord_fretting_sequence[idx].next_pitches = chords[idx + 1].pitches
@@ -321,7 +340,10 @@ class MuseScoreXMLParser:
                 xml_chord_nodes = xml_staff_single.findall('Measure/Chord')
 
                 # make sure we are looking at the same amount of chords (ignore rests!)
-                expected_len = len(xml_chord_nodes)
+                if FeatureConfig.CHORDS_AS_NOTES:
+                    expected_len = len(xml_staff_single.findall('Measure/Chord/Note'))
+                else:
+                    expected_len = len(xml_chord_nodes)
                 actual_len = len([cf for cf in chord_frettings if len(cf) > 0])
                 assert actual_len == expected_len - self._ignored_chords[instrument_id], \
                     'XML: Chords={} vs. {} new values. File manipulated?: {}, Instrument {} - {}'.format(
@@ -347,23 +369,29 @@ class MuseScoreXMLParser:
 
                     xml_notes = xml_chord.findall('Note')
 
-                    pitches = [nf.get_pitch(string_config) for nf in chord_fretting.note_frettings]
-                    pitches_xml = [int(xml_note.find('pitch').text) for xml_note in xml_notes]
-                    assert sorted(pitches) == sorted(pitches_xml), \
-                        'Pitch mismatch: {} vs. {}. File manipulated?: {}; lid={}'.format(
-                            pitches, pitches_xml, self._file_path, xml_chord.find('lid').text)
-
-                    # ... and therein update all notes
-                    for xml_note in xml_notes:
+                    # update all notes in the chord
+                    for subidx, xml_note in enumerate(xml_notes):
                         pitch = int(xml_note.find('pitch').text)
 
-                        note_fretting = [nf for nf in chord_fretting.note_frettings
-                                         if nf.get_pitch(string_config) == pitch][0]
+                        if FeatureConfig.CHORDS_AS_NOTES:
+                            note_fretting = chord_frettings[idx + subidx].note_frettings[0]
+                        else:
+                            note_fretting = chord_fretting.note_frettings[subidx]
+
+                        # note_fretting = [nf for nf in chord_fretting.note_frettings
+                        #                  if nf.get_pitch(string_config) == pitch][0]
+                        # make sure we're at the right position and the chord has not changed
+                        if not note_fretting.get_pitch(string_config) == pitch:
+                            assert (note_fretting.get_pitch(string_config) == pitch)
 
                         xml_note.find('string').text = str(string_config.num_strings - note_fretting.string)
                         xml_note.find('fret').text = str(note_fretting.fret)
 
-                    idx += 1
+                    # next step: advance one chord (or, all notes of that chord)
+                    if FeatureConfig.CHORDS_AS_NOTES:
+                        idx += len(xml_notes)
+                    else:
+                        idx += 1
 
         # now save
         self._xml_tree.write(target_path)
@@ -377,12 +405,12 @@ class MuseScoreXMLParser:
         :return: float duration
         :rtype: float
         """
-        if duration_text in MuseScoreXMLParser._duration_map.keys():
-            return MuseScoreXMLParser._duration_map[duration_text]
+        if duration_text in Parser._duration_map.keys():
+            return Parser._duration_map[duration_text]
         return 1 / float(duration_text.replace('th', '').replace('nd', ''))
 
 
-class FrettingGenerator:
+class Solver:
     """
     Solver for finding the best chord fretting sequence from a chord sequence
     based on a scoring function implemented  by a subclass of tabgen.modelling.ChordFrettingEvaluatorBase
@@ -391,16 +419,16 @@ class FrettingGenerator:
     __solve_count__ = 0
     __solve_avg_time__ = 0
 
-    def __init__(self, evaluator: ChordFrettingEvaluatorBase, pruning_config: PruningConfiguration=None):
+    def __init__(self, evaluator: ChordFrettingEvaluatorBase, pruning_config: PruningConfig=None):
         """
         :param evaluator: evaluation object for fretting scoring
         :type evaluator: ChordFrettingEvaluatorBase
         :param pruning_config: pruning information
-        :type pruning_config: PruningConfiguration
+        :type pruning_config: PruningConfig
         """
         # sanity check
         assert isinstance(evaluator, ChordFrettingEvaluatorBase)
-        assert isinstance(pruning_config, PruningConfiguration) or pruning_config is None
+        assert isinstance(pruning_config, PruningConfig) or pruning_config is None
 
         self._evaluator = evaluator
         self._pruning_config = pruning_config
@@ -410,7 +438,7 @@ class FrettingGenerator:
             self._evaluator, self._pruning_config)
     __repr__ = __str__
 
-    def solve_multi(self, input_files: list, parser: MuseScoreXMLParser, save_files=False, verbose=2) -> dict:
+    def solve_multi(self, input_files: list, parser: Parser, save_files=False, verbose=2) -> dict:
         """
         Solve multiple files (proxy for solve)
         :param input_files: absolute file paths to create new tabs for
@@ -482,7 +510,7 @@ class FrettingGenerator:
 
             if save_files:
                 target_file = parser.mscx_file.replace('.mscx', '_{}.mscx'.format(self._evaluator.name))
-                target_file = os.path.join(OUTPUT_TAB_PATH, os.path.relpath(target_file, VALIDATION_INPUT_TAB_PATH))
+                target_file = os.path.join(Path.VALIDATION_OUTPUT, os.path.relpath(target_file, Path.VALIDATION_INPUT))
                 parser.save(target_file)
 
         if verbose >= 1:
@@ -492,14 +520,14 @@ class FrettingGenerator:
 
         return sequences
 
-    def solve(self, chord_sequence: list, string_config: StringConfigurationBase, verbose: int=2) \
+    def solve(self, chord_sequence: list, string_config: StringConfigBase, verbose: int=2) \
             -> tabgen.modelling.ChordFrettingSequence:
         """
         finds the best ChordFrettingSequence for a given chord_sequence
         :param chord_sequence: the chords to be transferred to the instrument
         :type chord_sequence: list of Chord
         :param string_config: configuration of the target instrument
-        :type string_config: StringConfiguration
+        :type string_config: StringConfig
         :param verbose: how much to print on stdout (0: nothing, 1: some, 2: all)
         :type verbose: int
         :return: ChordFrettingSequence
@@ -508,13 +536,13 @@ class FrettingGenerator:
         assert type(chord_sequence) is list
         for chord in chord_sequence:
             assert isinstance(chord, tabgen.modelling.Chord)
-        assert isinstance(string_config, tabgen.modelling.StringConfiguration), \
-            '{} is not of type StringConfiguration!'.format(string_config)
+        assert isinstance(string_config, tabgen.modelling.StringConfig), \
+            '{} is not of type StringConfig!'.format(string_config)
 
         t_start = time()
 
         # initial chord candidates
-        next_chord = tabgen.modelling.Chord(1.0, [])
+        next_chord = tabgen.modelling.Chord(1.0, [], False)
         if len(chord_sequence) > 1:
             next_chord = chord_sequence[1].pitches
 
@@ -545,6 +573,9 @@ class FrettingGenerator:
         # find the best sequence(s)
         min_cost = min([seq.cost for seq in candidate_sequences])
         best_sequences = [seq for seq in candidate_sequences if seq.cost == min_cost]
+
+        if len(best_sequences) > 1:
+            warnings.warn('More than one "best" sequence!')
         best_sequence = best_sequences[0]
 
         t_end = time()

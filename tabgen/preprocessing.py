@@ -1,11 +1,12 @@
-from tabgen import processing, evaluation
 from .definitions import *
+from tabgen import processing, evaluation
 from tabgen.modelling import InvalidFrettingException
+from tqdm import tqdm
 
 
 def extract_features(force_overwrite: bool=False, delete_mscx_afterwards: bool=False) -> None:
     """
-    extracts csv feature files from TAB_PATH to FEATURE_FOLDER_PATH (only if in worklist file WORKLIST_PATH)
+    extracts csv feature files from TAB_PATH to Path.FEATURE_FOLDER (only if in worklist file WORKLIST_PATH)
     using the settings from tabgen.definitions
     :param force_overwrite: Overwrites existing feature files
     :type force_overwrite: bool
@@ -15,21 +16,21 @@ def extract_features(force_overwrite: bool=False, delete_mscx_afterwards: bool=F
     assert type(force_overwrite) is bool and type(delete_mscx_afterwards) is bool
 
     # don't need an evaluator for preprocessing - pass dummy
-    parser = processing.MuseScoreXMLParser(evaluation.DummyFrettingEvaluator())
+    parser = processing.Parser(evaluation.DummyFrettingEvaluator())
 
     # get list of input files
-    input_files = os.listdir(TRAINING_INPUT_TAB_PATH)
+    input_files = os.listdir(Path.TRAINING_INPUT)
     input_files = [input_file for input_file in input_files if input_file + '.mscx' not in input_files]
 
     # exclude files already done
     if not force_overwrite:
-        done_files = [ff.replace('.csv', '') for ff in os.listdir(FEATURE_FOLDER_PATH)]
+        done_files = [ff.replace('.csv', '') for ff in os.listdir(Path.FEATURE_FOLDER)]
         for ff in done_files:
             if ff in input_files:
                 input_files.remove(ff)
 
     # enrich with full path
-    input_files = [os.path.join(TRAINING_INPUT_TAB_PATH, input_file.strip()) for input_file in input_files]
+    input_files = [os.path.join(Path.TRAINING_INPUT, input_file.strip()) for input_file in input_files]
 
     # extract features
     for input_file in tqdm(input_files, desc='Extracting tab features', unit='file'):
@@ -45,19 +46,12 @@ def extract_features(force_overwrite: bool=False, delete_mscx_afterwards: bool=F
 
         input_file = parser.mscx_file
 
-        if CHORDS_AS_NOTES:
-            features = [note_chord_fretting.features
-                        for instrument_id in parser.instrument_ids
-                        for chord_fretting in parser.get_chord_fretting_sequence(instrument_id)
-                        for note_chord_fretting in chord_fretting.to_sequential()]
+        features = [chord_fretting.features
+                    for instrument_id in parser.instrument_ids
+                    for chord_fretting in parser.get_chord_fretting_sequence(instrument_id)]
 
-        else:
-            features = [chord_fretting.features
-                        for instrument_id in parser.instrument_ids
-                        for chord_fretting in parser.get_chord_fretting_sequence(instrument_id)]
-
-        target_file = os.path.join(FEATURE_FOLDER_PATH, os.path.relpath(input_file, TRAINING_INPUT_TAB_PATH) + '.csv')
-        pd.DataFrame(pd.DataFrame(features).astype(np.float)).to_csv(target_file)
+        target_file = os.path.join(Path.FEATURE_FOLDER, os.path.relpath(input_file, Path.TRAINING_INPUT) + '.csv')
+        pd.DataFrame(pd.DataFrame(features).astype(np.float)).to_csv(target_file, index=False)
 
         if delete_mscx_afterwards:
             parser.delete_mscx_file()
@@ -67,109 +61,118 @@ def extract_features(force_overwrite: bool=False, delete_mscx_afterwards: bool=F
 
 def merge_files() -> None:
     """
-    merges files from FEATURE_FOLDER_PATH into file TRAINING_DATA_FILE_PATH
+    merges files from Path.FEATURE_FOLDER into file Path.FEATURE_FILE
     """
-    with open(TRAINING_DATA_FILE_PATH, 'w') as target:
+    with open(Path.FEATURE_FILE, 'w') as target:
         keys = None
-        for csv_file in tqdm(os.listdir(FEATURE_FOLDER_PATH), desc='Merging feature files'):
+        for csv_file in tqdm(os.listdir(Path.FEATURE_FOLDER), desc='Merging feature files'):
             if csv_file.endswith('.csv'):
-                with open(os.path.join(FEATURE_FOLDER_PATH, csv_file), 'r') as csv:
+                with open(os.path.join(Path.FEATURE_FOLDER, csv_file), 'r') as csv:
 
                     # read keys (first line) and check consistency
                     keys_new = csv.readline()
                     if keys is None:
                         keys = keys_new
                         target.write(keys)
+                    empty_line = ','.join([str(0.0) for _ in range(keys.count(',') + 1)])+'\n'
 
                     if not keys == keys_new:
                         warnings.warn('File format not matching: {}'.format(csv_file))
                         warnings.warn('Deleting file.')
-                        os.remove(os.path.join(FEATURE_FOLDER_PATH, csv_file))
+                        os.remove(os.path.join(Path.FEATURE_FOLDER, csv_file))
                         continue
 
                     # copy value lines to merged target file
                     for line in csv:
                         target.write(line)
+
+                    # add empty lines to get context clean
+                    for _ in range(FeatureConfig.max_depth + 1):
+                        target.write(empty_line)
+
                 csv.close()
     target.close()
-    print('File merged: {}'.format(TRAINING_DATA_FILE_PATH))
+    print('File merged: {}'.format(Path.FEATURE_FILE))
 
 
-def count() -> None:
+def add_probabilities(rounding_digits=-1) -> None:
     """
     Count feature vector occurrences
     """
 
-    # get available features
-    with open(TRAINING_DATA_FILE_PATH, 'r') as data_file:
-        keys = data_file.readline().strip().split(',')[1:]
-    data_file.close()
+    # get data
+    print('CALCULATE PROBABILITIES')
+    print('Loading data...', end='')
+    dataframe = pd.read_csv(Path.FEATURE_FILE)
+    dataframe.drop(
+        [col for col in dataframe.columns if col.startswith('prob')], axis=1, inplace=True
+    )
+    print('done')
 
-    count_columns = {}
+    # ignore next_ columns, but keep in table
+    data_flat = dataframe.values.astype(np.float32)
+    n_features = len(dataframe.columns)
 
-    # delta models
-    if FeatureConfiguration.delta:
-        usecols = []
-        for depth in tqdm(range(1, FeatureConfiguration.max_depth + 1), desc='Counting occurrences: delta'):
-            prefix = 'delta{}'.format(depth)
+    # mask to exclude lookahead features
+    mask = [int(not col.startswith('next')) for col in dataframe.columns]
+    print('Targets: {}\nSource: {}'.format(
+        [col for m, col in zip(mask, dataframe.columns) if m == 1.0], dataframe.columns)
+    )
 
-            # append! --> first, delta1, then [delta1, delta2] etc.
-            for col in keys:
-                if col.startswith(prefix):
-                    usecols.append(col)
+    # rounding, to ignore small differences
+    if rounding_digits > -1:
+        data_flat = data_flat.round(rounding_digits)
 
-            count_columns[prefix] = _count_single(usecols)
+    # iterate through context lengths, find the respective counts and create a new column in dataframe
+    for context_length in range(1, FeatureConfig.max_depth + 1):
+        print('Calculating probabilities for context length {}'.format(context_length))
 
-    # unigram model
-    usecols = [k for k in keys if not (k.startswith('delta') or k.startswith('prev'))]
-    count_columns['unigram'] = _count_single(usecols)
+        counts = {}
 
-    # prev models
-    if FeatureConfiguration.prev:
-        usecols = usecols[:]  # copy unigram columns
-        for depth in tqdm(range(1, FeatureConfiguration.max_depth + 1), desc='Counting occurrences: prev'):
-            prefix = 'prev{}'.format(depth)
+        # get data of the correct context length
+        # order is [..., prev2, prev1, current]
+        data = data_flat
+        if context_length > 0:
+            data = np.concatenate([
+                data * mask,
+                np.concatenate([
+                    np.concatenate([np.zeros_like(data[0:i]), data[:-i, :]])
+                    for i in range(1, context_length + 1)
+                ], axis=1)
+            ], axis=1)
+        data = data[:, ::-1]
 
-            # append! --> first, [current, prev1], then [current, prev1, prev2] etc.
-            for col in keys:
-                if col.startswith(prefix):
-                    usecols.append(col)
+        # get counts from the data
+        for row in tqdm(data, desc='Counting occurrences'):
+            key = row.tobytes()
+            if key in counts:
+                counts[key] += 1
+            else:
+                counts[key] = 1
 
-            count_columns[prefix] = _count_single(usecols)
+        # turn into probabilities
+        counts_prev = {}
+        for key, value in tqdm(counts.items(), desc='Building conditional counts'):
+            row = np.fromstring(key, dtype=data.dtype)
+            key_prev = row[:n_features].tobytes()
+            if key_prev in counts_prev:
+                counts_prev[key_prev] += value
+            else:
+                counts_prev[key_prev] = value
 
-    # save
-    dataframe = pd.read_csv(TRAINING_DATA_FILE_PATH, index_col=0)
-    for prefix, counts in count_columns.items():
-        dataframe['counts_{}'.format(prefix)] = counts
-        dataframe['cost_{}'.format(prefix)] = \
-            [evaluation.RegressionChordFrettingEvaluator.count2cost(cc) for cc in counts]
-    dataframe.to_csv(TRAINING_DATA_FILE_PATH)
+        probs = {}
+        for key in tqdm(counts, desc='Calculating probabilities'):
+            # P = counts(n-gram) / counts(previous (n-1)-gram
+            row = np.fromstring(key, dtype=data.dtype)
+            key_prev = row[:n_features].tobytes()
+            probs[key] = counts[key] / counts_prev[key_prev]
 
+        print('{} probabilities extracted.'.format(len(probs)))
+        np.save(os.path.join(Path.DATA, 'probabilities_{}.npy'.format(context_length)), probs)
 
-def _count_single(usecols: list) -> list:
-    """
-    generates a counts column while respecting only the columns is usecols
-    :param usecols: list of column names to use
-    :type usecols: list
-    """
-    t_start = time()
+        dataframe['probs_{}'.format(context_length)] = [probs[row.tobytes()] for row in data]
 
-    # load data and make lines comparable
-    dataframe = pd.read_csv(TRAINING_DATA_FILE_PATH, index_col=0, usecols=usecols)
-    stringified = ['-'.join([str(x) for x in row]) for row in dataframe.itertuples()]
-    del dataframe  # free space
-
-    t_end = time()
-    if TRACK_PERFORMANCE:
-        print('read file: {} ms'.format((t_end - t_start) * 1000))
-
-    # count occurrences
-    counts = {}
-    for stringified_line in stringified:
-        if stringified_line in counts.keys():
-            counts[stringified_line] += 1
-        else:
-            counts[stringified_line] = 1
-
-    # build count column
-    return [counts[stringified_line] for stringified_line in stringified]
+    # save updated dataframe
+    print('Saving data...', end='')
+    dataframe.to_csv(Path.FEATURE_FILE, index=False)
+    print('done')

@@ -3,7 +3,7 @@ Base classes for polymorphism
 """
 
 
-class StringConfigurationBase:
+class StringConfigBase:
     """
     ABSTRACT
     A configuration object describing an instrument (strings and frets)
@@ -47,7 +47,7 @@ class ChordFrettingEvaluatorBase:
         raise NotImplementedError()
 
 
-class PruningConfiguration:
+class PruningConfig:
     """
     A full set of pruning settings
     """
@@ -74,7 +74,7 @@ class PruningConfiguration:
         self._max_sequences = max_sequences
 
     def __str__(self) -> str:
-        return 'PruningConfiguration({}, {}, {}, {})'.format(
+        return 'PruningConfig({}, {}, {}, {})'.format(
             self._candidate_beam_width, self._max_candidates, self._sequence_beam_width, self._max_sequences
         )
     __repr__ = __str__

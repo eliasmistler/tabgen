@@ -6,10 +6,10 @@ Description:  Objects modelling the structure of the transcription problem
                 1. pitch view: The musical content (Pitches and Chords)
                 2. tab view:   A way of playing on a stringed instrument (Frettings)
               The two views are related through the instrument of interest,
-                which is represented by the StringConfigurationBase object
+                which is represented by the StringConfigBase object
 
-Contains:     PruningConfiguration
-              StringConfigurationBase
+Contains:     PruningConfig
+              StringConfigBase
               Pitch
               NoteFretting
               Chord
@@ -24,7 +24,7 @@ from .definitions import *
 
 
 class NoValidFrettingException(Exception):
-    def __init__(self, chord_or_note: object, string_config: StringConfigurationBase):
+    def __init__(self, chord_or_note: object, string_config: StringConfigBase):
         self.message = 'No fretting for {} on strings {} with {} frets!'.format(
             chord_or_note, string_config.string_pitches, string_config.num_frets)
 
@@ -34,73 +34,11 @@ class InvalidFrettingException(Exception):
         self.message = 'Invalid Fretting: {} - {}'.format(reason, args)
 
 
-class StringConfiguration(StringConfigurationBase):
-    """
-    A configuration object describing an instrument (strings and frets)
-    """
-
-    def __init__(self, string_pitches: list, num_frets: int):
-        """
-            :param string_pitches: individual pitches of the strings, list of int; e.g. EADGBE: [40,45,50,55,59,64]
-            :type string_pitches: list
-            :param num_frets: Number of frets
-            :type num_frets: int
-            """
-        super().__init__()
-        assert type(string_pitches) is list
-        assert len(string_pitches) > 0
-        assert string_pitches == sorted(string_pitches)
-        self._pitches = []
-        for pitch in string_pitches:
-            if type(pitch) is int:
-                pitch = Pitch(pitch)
-            assert isinstance(pitch, Pitch), 'pitch needs to be int or Pitch: {}'.format(pitch)
-            self._pitches.append(pitch)
-        assert type(num_frets) is int and num_frets > 0
-        self._frets = num_frets
-
-    def __str__(self) -> str:
-        return 'StringConfigurationBase({}, {})'.format(self._pitches, self._frets)
-    __repr__ = __str__
-
-    @property
-    def string_pitches(self) -> list:
-        return self._pitches
-
-    @property
-    def num_frets(self) -> int:
-        return self._frets
-
-    @property
-    def num_strings(self) -> int:
-        return len(self._pitches)
-
-    @property
-    def min_pitch(self) -> int:
-        return min(self._pitches).pitch
-
-    @property
-    def max_pitch(self) -> int:
-        return max(self._pitches).pitch + self.num_frets
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, StringConfiguration):
-            return False
-        return (self._pitches == other.string_pitches) \
-            and (self._frets == other.num_frets)
-
-    def __ne__(self, other) -> bool:
-        return not self == other
-
-
 class Pitch:
     """
     Wrapper for integer Pitches (MIDI-Pitch)
     allows to retrieve possible frettings
     """
-
-    # cache dict: StringConfigurationBase --> Pitch --> NoteFretting
-    _cache = {}
 
     def __init__(self, pitch: int, fully_muted: bool=False):
         """
@@ -119,30 +57,17 @@ class Pitch:
             return 'Pitch({})'.format(self._pitch)
     __repr__ = __str__
 
-    def get_note_frettings(self, string_config: StringConfigurationBase) -> list:
+    def get_note_frettings(self, string_config: StringConfigBase) -> list:
         """
         gets all possible frettings for a single pitch
         :param string_config: string Configuration to be considered
-        :type string_config: StringConfigurationBase
+        :type string_config: StringConfigBase
         :return: possible note frettings for the pitch
         :rtype: list of NoteFretting
         """
         # sanity check
-        assert isinstance(string_config, StringConfigurationBase), \
-            '{} is not of type StringConfigurationBase!'.format(string_config)
-
-        s_self = str(self)
-        s_conf = str(string_config)
-        if CACHING:
-            # use cache for possible frettings to speed up
-            # cache dict: StringConfigurationBase --> Pitch --> NoteFretting
-            if s_conf in Pitch._cache:
-                if s_self in Pitch._cache[s_conf]:
-                    return Pitch._cache[s_conf][s_self]  # need not clone (has no dependencies)
-
-            # create a new dictionary for the cache if it does not exist yet
-            else:
-                Pitch._cache[s_conf] = {}
+        assert isinstance(string_config, StringConfigBase), \
+            '{} is not of type StringConfigBase!'.format(string_config)
 
         # calculate frettings
         frettings = []
@@ -169,14 +94,6 @@ class Pitch:
 
         if len(frettings) == 0:
             raise NoValidFrettingException(self, string_config)
-        # assert len(frettings) > 0, \
-        #     '{} impossible to fret on strings {} with {} frets!'.format(
-        #         str(self), string_config.string_pitches, string_config.num_frets
-        #     )
-
-        if CACHING:
-            # add entry to cache
-            Pitch._cache[s_conf][s_self] = frettings
 
         return frettings
 
@@ -230,6 +147,70 @@ class Pitch:
 
     def __int__(self) -> int:
         return self._pitch
+
+
+class StringConfig(StringConfigBase):
+    """
+    A configuration object describing an instrument (strings and frets)
+    """
+    STANDARD_24_FRETS = None
+    DROP_D_24_FRETS = None
+
+    def __init__(self, string_pitches: list, num_frets: int):
+        """
+            :param string_pitches: individual pitches of the strings, list of int; e.g. EADGBE: [40,45,50,55,59,64]
+            :type string_pitches: list
+            :param num_frets: Number of frets
+            :type num_frets: int
+            """
+        super().__init__()
+        assert type(string_pitches) is list
+        assert len(string_pitches) > 0
+        assert string_pitches == sorted(string_pitches)
+        self._pitches = []
+        for pitch in string_pitches:
+            if type(pitch) is int:
+                pitch = Pitch(pitch)
+            assert isinstance(pitch, Pitch), 'pitch needs to be int or Pitch: {}'.format(pitch)
+            self._pitches.append(pitch)
+        assert type(num_frets) is int and num_frets > 0
+        self._frets = num_frets
+
+    def __str__(self) -> str:
+        return 'StringConfigBase({}, {})'.format(self._pitches, self._frets)
+    __repr__ = __str__
+
+    @property
+    def string_pitches(self) -> list:
+        return self._pitches
+
+    @property
+    def num_frets(self) -> int:
+        return self._frets
+
+    @property
+    def num_strings(self) -> int:
+        return len(self._pitches)
+
+    @property
+    def min_pitch(self) -> int:
+        return min(self._pitches).pitch
+
+    @property
+    def max_pitch(self) -> int:
+        return max(self._pitches).pitch + self.num_frets
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, StringConfig):
+            return False
+        return (self._pitches == other.string_pitches) \
+            and (self._frets == other.num_frets)
+
+    def __ne__(self, other) -> bool:
+        return not self == other
+
+StringConfig.STANDARD_24_FRETS = StringConfig([40, 45, 50, 55, 59, 64], 24)
+StringConfig.DROP_D_24_FRETS = StringConfig([38, 45, 50, 55, 59, 64], 24)
 
 
 class NoteFretting:
@@ -291,21 +272,21 @@ class NoteFretting:
         else:
             return str(self.fret)
 
-    def get_pitch(self, string_config: StringConfigurationBase) -> Pitch:
+    def get_pitch(self, string_config: StringConfigBase) -> Pitch:
         """
         get Pitch by applying fretting to string_config
         :param string_config: the string configuration to use
-        :type string_config: StringConfigurationBase
+        :type string_config: StringConfigBase
         :return: pitch
         :rtype: Pitch
         """
         # sanity check
-        assert isinstance(string_config, StringConfigurationBase), \
-            '{} is not of type StringConfigurationBase!'.format(string_config)
+        assert isinstance(string_config, StringConfigBase), \
+            '{} is not of type StringConfigBase!'.format(string_config)
         assert len(string_config.string_pitches) >= self.string, \
-            'String {} not in StringConfigurationBase {}!'.format(self.string, string_config)
+            'String {} not in StringConfigBase {}!'.format(self.string, string_config)
         assert string_config.num_frets >= self.fret, \
-            'Fret {} not reachable in StringConfigurationBase {}!'.format(self.fret, string_config)
+            'Fret {} not reachable in StringConfigBase {}!'.format(self.fret, string_config)
         return Pitch(string_config.string_pitches[self.string - 1].pitch + self.fret, fully_muted=self.fully_muted)
 
 
@@ -315,20 +296,16 @@ class Chord:
     depending on the number of pitches (0, 1, 2+)
     """
 
-    # cache dict: Evaluator --> StringConfigurationBase --> Chord --> ChordFretting
-    _cache = {}
-
     __fret_avg_time__ = 0
     __fret_count__ = 0
 
-    def __init__(self, duration: float, pitches: list):
+    def __init__(self, duration: float, pitches: list, part_of_previous: bool):
         """
         :param pitches: which pitches to play, list of int or Pitch
         :type pitches: list
         :param duration: note/chord/rest duration
         :type duration: float
         """
-
         # sanity check
         assert type(pitches) is list and (len(pitches) == 0 or min(pitches) > 0)
         for idx, pitch in enumerate(pitches):
@@ -337,12 +314,14 @@ class Chord:
             assert isinstance(pitches[idx], Pitch)
 
         assert type(duration) is float and duration > 0
+        assert type(part_of_previous) is bool
 
         self._pitches = sorted(pitches)
         self._duration = duration
+        self._part_of_previous = part_of_previous
 
     def __str__(self) -> str:
-        return 'Chord({}, {})'.format(self._duration, self._pitches)
+        return 'Chord({}, {}, {})'.format(self._duration, self._pitches, self._part_of_previous)
     __repr__ = __str__
 
     def __len__(self) -> int:
@@ -365,18 +344,18 @@ class Chord:
     def duration(self):
         return self._duration
 
-    def get_chord_frettings(self, string_config: StringConfigurationBase,
+    def get_chord_frettings(self, string_config: StringConfigBase,
                             evaluator: ChordFrettingEvaluatorBase,
-                            pruning_config: PruningConfiguration=None,
+                            pruning_config: PruningConfig=None,
                             next_pitches: typing.Optional[list]=None,
                             prev: 'ChordFretting'=None) -> list:
         """
         finds and evaluates fretting options
         only keeps frettings with cost <= min+beam_width*std
         :param string_config: string configuration object
-        :type string_config: StringConfigurationBase
+        :type string_config: StringConfigBase
         :param pruning_config: pruning configuration
-        :type pruning_config: PruningConfiguration
+        :type pruning_config: PruningConfig
         :param evaluator: Evalutator for pruning purposes
         :type evaluator: ChordFrettingEvaluatorBase
         :param next_pitches: Next chord's pitches (for lookahead-prediction)
@@ -387,10 +366,10 @@ class Chord:
         :rtype: list of ChordFretting
         """
         # sanity check
-        assert isinstance(string_config, StringConfigurationBase), \
-            '{} is not an instance of StringConfigurationBase!'.format(string_config)
-        assert isinstance(pruning_config, PruningConfiguration) or pruning_config is None,\
-            '{} is not an instance of PruningConfiguration!'.format(pruning_config)
+        assert isinstance(string_config, StringConfigBase), \
+            '{} is not an instance of StringConfigBase!'.format(string_config)
+        assert isinstance(pruning_config, PruningConfig) or pruning_config is None,\
+            '{} is not an instance of PruningConfig!'.format(pruning_config)
         assert isinstance(evaluator, ChordFrettingEvaluatorBase), \
             '{} is not an instance of ChordFrettingEvaluatorBase!'.format(evaluator)
         assert prev is None or isinstance(prev, ChordFretting)
@@ -403,86 +382,88 @@ class Chord:
 
         # no pitch -- empty fretting
         if len(self._pitches) == 0:
-            return [ChordFretting(self._duration, [], evaluator, prev, next_pitches, string_config)]
+            return [ChordFretting(self._duration, [], evaluator, prev, next_pitches, string_config, False)]
 
         t_start = time()
 
-        chord_frettings = []
-        # caching path
-        s_eval = str(evaluator)
-        s_config = str(string_config)
-        s_chord = str(self)
-        if CACHING:
+        # too many pitches to play?
+        assert len(string_config.string_pitches) >= len(self._pitches), \
+            'Chord {} impossible to fret on strings {} with {} frets: too many pitches!'.format(
+                self._pitches, string_config.string_pitches, string_config.num_frets)
 
-            # use cache for possible frettings to speed up
-            # cache dict: Evaluator --> StringConfigurationBase --> Chord --> ChordFretting
-            if s_eval not in Chord._cache:
-                Chord._cache[s_eval] = {}
+        # first, get all possible frettings for the single notes
+        note_frettings_dict = dict([(pitch, pitch.get_note_frettings(string_config)) for pitch in self._pitches])
 
-            if s_config not in Chord._cache[s_eval]:
-                Chord._cache[s_eval][s_config] = {}
+        # generate all possible chord frettings
+        # ... starting from all possibilities of the first pitch
+        chord_frettings = [[ff] for ff in note_frettings_dict[self._pitches[0]]]
 
-            if s_chord not in Chord._cache[s_eval][s_config]:
-                # Chord._cache[s_eval][s_config][s_chord] does not exists --> will be created!
-                pass
+        # handle chords in sequential scenario
+        if FeatureConfig.CHORDS_AS_NOTES and self._part_of_previous:
+            strings_used = []
+            prev_x = prev
+            part = self._part_of_previous
 
-            # found in cache
-            else:
-                # need to clone (depedencies!)
-                chord_frettings = [ff.clone() for ff in Chord._cache[s_eval][s_config][s_chord]]
+            # remove already used strings from possible frettings
+            while part:
+                strings_used.append(prev_x.note_frettings[0].string)
+                part = prev_x.is_part_of_previous
+                prev_x = prev_x.previous
 
-        # not in cache --> create and insert into cache
-        if len(chord_frettings) == 0:
-
-            # too many pitches to play
-            assert len(string_config.string_pitches) >= len(self._pitches), \
-                'Chord {} impossible to fret on strings {} with {} frets: too many pitches!'.format(
-                    self._pitches, string_config.string_pitches, string_config.num_frets)
-
-            # first, get all possible frettings for the single notes
-            note_frettings_dict = dict([(pitch, pitch.get_note_frettings(string_config)) for pitch in self._pitches])
-
-            # generate all possible chord frettings
-            # ... starting from all possibilities of the first pitch
-            chord_frettings = [[ff] for ff in note_frettings_dict[self._pitches[0]]]
-
-            # ... then adding all valid possibilities for the next pitches
-            for pitch in self._pitches[1:]:
-
-                # concatenate every possible next note fretting
-                # to every fretting found for previous notes
-                chord_frettings_new = []
-                for note_fretting in note_frettings_dict[pitch]:
-                    for chord_fretting in chord_frettings:
-                        # check if string already used
-                        if note_fretting.string not in [nf.string for nf in chord_fretting]:
-                            chord_frettings_new.append(chord_fretting + [note_fretting])
-                chord_frettings = chord_frettings_new
-
-            # heuristic filtering
-            if HEURISTIC_PREFILTER:
-                chord_frettings = [
-                    cf for cf in chord_frettings
-                    if max([nf.fret for nf in cf]) - min([nf.fret for nf in cf]) <= HEURISTIC_MAX_FRETS
-                    and len(set([nf.fret for nf in cf])) <= HEURISTIC_MAX_FINGERS
-                ]
-
-            # wrap in class
-            chord_frettings = [
-                ChordFretting(self._duration, sorted(ff, key=lambda x: x.string),
-                              evaluator, prev, next_pitches, string_config)
-                for ff in chord_frettings
-            ]
-
-            # add entry to cache
-            if CACHING:
-                # need to clone (depedencies!)
-                Chord._cache[s_eval][s_config][s_chord] = [ff.clone() for ff in chord_frettings]
+            chord_frettings = [cf for cf in chord_frettings if cf[0].string not in strings_used]
 
         if len(chord_frettings) == 0:
             raise NoValidFrettingException(self, string_config)
-        # assert len(frettings) > 0, \
-        #   'No fretting could be found for {} with configuration {}'.format(self, string_config)
+
+        # ... then adding all valid possibilities for the next pitches
+        for pitch in self._pitches[1:]:
+
+            # concatenate every possible next note fretting
+            # to every fretting found for previous notes
+            chord_frettings_new = []
+            for note_fretting in note_frettings_dict[pitch]:
+                for chord_fretting in chord_frettings:
+                    # check if string already used
+                    if note_fretting.string not in [nf.string for nf in chord_fretting]:
+                        chord_frettings_new.append(chord_fretting + [note_fretting])
+            chord_frettings = chord_frettings_new
+
+        if len(chord_frettings) == 0:
+            raise NoValidFrettingException(self, string_config)
+
+        # heuristic filtering
+        if FeatureConfig.HEURISTIC_PREFILTER:
+            chord_frettings_filtered = chord_frettings
+
+            if FeatureConfig.CHORDS_AS_NOTES:
+                # sequence based pre-filtering (this is a simplified version):
+                if self._part_of_previous:
+                    chord_frettings_filtered = [
+                        cf for cf in chord_frettings
+                        if abs(cf[0].fret - prev.note_frettings[0].fret) <= FeatureConfig.HEURISTIC_MAX_FRETS
+                    ]
+
+            else:
+                chord_frettings_filtered = [
+                    cf for cf in chord_frettings
+                    if max([nf.fret for nf in cf]) - min([nf.fret for nf in cf]) <= FeatureConfig.HEURISTIC_MAX_FRETS
+                    and len(set([nf.fret for nf in cf])) <= FeatureConfig.HEURISTIC_MAX_FINGERS
+                ]
+
+            if len(chord_frettings_filtered) > 0:
+                chord_frettings = chord_frettings_filtered
+            else:
+                warnings.warn('Pre-filtering removed all frettings! Defaulting to all frettings.')
+
+        # wrap in class
+        chord_frettings = [
+            ChordFretting(self._duration, sorted(ff, key=lambda x: x.string),
+                          evaluator, prev, next_pitches, string_config, self._part_of_previous)
+            for ff in chord_frettings
+        ]
+
+        if len(chord_frettings) == 0:
+            raise NoValidFrettingException(self, string_config)
 
         # if pruning requirements are given, prune
         if pruning_config is not None and evaluator is not None:
@@ -495,8 +476,11 @@ class Chord:
                                      key=lambda x: x.cost)
 
             # max candidate pruning
-            if len(chord_frettings) > pruning_config.max_candidates > 0:
+            if len(chord_frettings) > pruning_config.max_candidates > 0 and pruning_config.max_candidates > 0:
                 chord_frettings = chord_frettings[:pruning_config.max_candidates]
+
+        if len(chord_frettings) == 0:
+            raise NoValidFrettingException(self, string_config)
 
         t_end = time()
         if TRACK_PERFORMANCE:
@@ -525,23 +509,13 @@ class ChordFretting:
     Fretting of a Chord, represented by a list of single note frettings, context features and duration
     """
     _entity_names = {'string', 'fret'}
-    _descriptor_functions = {
-        'mean': np.mean,
-        'std': np.std,  # if len(x) > 0 else 0,
-        # 'min': min,
-        # '25%': lambda x: np.percentile(x, 25),
-        # '50%': np.median,
-        # '75%': lambda x: np.percentile(x, 75),
-        # 'max': max,
-        # 'range': lambda x: max(x) - min(x)
-    }
     _descriptor_features_zero = {}  # create in init
     _descriptor_pitches_zero = {}  # create in init
     _empty_fretting = None
 
     def __init__(self, duration: float, note_frettings: list, evaluator: ChordFrettingEvaluatorBase,
                  previous_chord_fretting: typing.Optional['ChordFretting'], next_pitches: list,
-                 string_config: StringConfigurationBase):
+                 string_config: StringConfigBase, part_of_previous: bool):
         """
         :param duration: duration as fracture of whole notes (e.g. 0.25 for quarter note)
         :type duration: float
@@ -559,8 +533,9 @@ class ChordFretting:
         strings = [nf.string for nf in note_frettings]
         frets = [nf.fret for nf in note_frettings]
         assert isinstance(evaluator, ChordFrettingEvaluatorBase)
-        assert isinstance(string_config, StringConfigurationBase)
+        assert isinstance(string_config, StringConfigBase)
         assert previous_chord_fretting is None or isinstance(previous_chord_fretting, ChordFretting)
+        assert type(part_of_previous) is bool
 
         self._features = {}
         self._cost = None
@@ -569,23 +544,23 @@ class ChordFretting:
             raise InvalidFrettingException('duplicate use of string', note_frettings)
         if len(strings) > 0 and len(string_config.string_pitches) < max(strings):
             raise InvalidFrettingException(
-                'String {} not in StringConfigurationBase {}!'.format(max(strings), string_config), max(strings))
+                'String {} not in StringConfigBase {}!'.format(max(strings), string_config), max(strings))
         if len(frets) > 0 and string_config.num_frets < max(frets):
             raise InvalidFrettingException(
-                'Fret {} not reachable in StringConfigurationBase {}!'.format(max(frets), string_config), max(frets))
+                'Fret {} not reachable in StringConfigBase {}!'.format(max(frets), string_config), max(frets))
 
         # create zero-vector for filling up later
         if ChordFretting._descriptor_features_zero == {}:
             ChordFretting._descriptor_features_zero = \
                 dict([('{}_{}'.format(entity, descriptor), 0.0)
-                      for descriptor in ChordFretting._descriptor_functions
+                      for descriptor in FeatureConfig.descriptors_functions
                       for entity in ChordFretting._entity_names])
 
         # create zero-vector for filling up later
         if ChordFretting._descriptor_pitches_zero == {}:
             ChordFretting._descriptor_pitches_zero = \
                 dict([('next_pitches_{}'.format(descriptor), 0.0)
-                      for descriptor in ChordFretting._descriptor_functions])
+                      for descriptor in FeatureConfig.descriptors_functions])
 
         self._duration = duration
         self._note_frettings = sorted(note_frettings, key=lambda x: x.string)
@@ -594,17 +569,7 @@ class ChordFretting:
         self._string_config = string_config
         self._evaluator = evaluator
         self._prev = previous_chord_fretting
-
-    def to_sequential(self):
-        prev = self._prev
-        chord_frettings = []
-        for note_fretting in self._note_frettings:
-            chord_fretting = ChordFretting(self.duration, [note_fretting], self._evaluator,
-                                           prev, self._next_pitches, self._string_config)
-            prev = chord_fretting
-            chord_frettings.append(chord_fretting)
-
-        return ChordFrettingSequence(chord_frettings)
+        self._part_of_previous = part_of_previous
 
     @property
     def next_pitches(self):
@@ -624,6 +589,10 @@ class ChordFretting:
         if self._features != {}:
             self._update_next_pitch_features()
 
+    @property
+    def is_part_of_previous(self):
+        return self._part_of_previous
+
     def __str__(self) -> str:
         return 'ChordFretting({}, {}, {}, previous_chord_fretting set?: {})'.format(
             self._duration, self._note_frettings, self._evaluator, self.previous is not None)
@@ -639,19 +608,20 @@ class ChordFretting:
         :rtype: ChordFretting
         """
         return ChordFretting(self.duration, self.note_frettings, self._evaluator,
-                             self.previous, self._next_pitches, self._string_config)
+                             self.previous, self._next_pitches, self._string_config, self._part_of_previous)
 
     @property
     def previous(self) -> 'ChordFretting':
         if self._prev is None:
             # create empty fretting as a "terminal state" (to use instead of None as previous)
             if type(self)._empty_fretting is None:
-                type(self)._empty_fretting = ChordFretting(1.0, [], self._evaluator, None, [], self._string_config)
+                type(self)._empty_fretting = \
+                    ChordFretting(1.0, [], self._evaluator, None, [], self._string_config, False)
                 type(self)._empty_fretting.previous = type(self)._empty_fretting
 
             # no previous chord frettings --> use 1 bar rest as default "previous"
             self._prev = ChordFretting(1.0, [], self._evaluator, type(self)._empty_fretting,
-                                       self.get_chord().pitches, self._string_config)
+                                       self.get_chord().pitches, self._string_config, False)
         # noinspection PyTypeChecker
         return self._prev
 
@@ -674,21 +644,16 @@ class ChordFretting:
                     or len(self._note_frettings) == 0:
                 self._cost = 0.0
             else:
-
-                # split chord into single notes if CHORDS_AS_NOTES=True
-                if CHORDS_AS_NOTES and len(self) > 1:
-                    self._cost = self.to_sequential().cost
-                else:
-                    self._cost = self._evaluator.evaluate(self)
+                self._cost = self._evaluator.evaluate(self)
 
     def _extract_features(self) -> None:
         """
-        extract the general features
+        extract the features
         """
         count = len(self._note_frettings)
         self._features = {}
 
-        if FeatureConfiguration.basic:
+        if FeatureConfig.basic:
             self._features.update(dict(
                 duration=self._duration,
                 is_chord=count > 1,
@@ -697,40 +662,31 @@ class ChordFretting:
                 count=count
             ))
 
+        if FeatureConfig.CHORDS_AS_NOTES:
+            self._features.update(
+                part_of_previous=self._part_of_previous
+            )
+
         # set the next_pitch features
         self._update_next_pitch_features()
 
-        # vertical chord handling
-        # keep all features for len > 1 (for temporary handling of previous.. TODO?)
-        if CHORDS_AS_NOTES and len(self) <= 1:
-            if len(self) == 0:
-                self._features.update(dict(
-                    string_mean=0.0,
-                    fret_mean=0.0,
-                ))
+        # use entities X frettings_desc (pd.describe()) as features
+        if FeatureConfig.frettings_desc:
+
+            # empty (=rest) --> fill all zeroes
+            if len(self._note_frettings) == 0:
+                self._features.update(type(self)._descriptor_features_zero)
+
             else:
-                self._features.update(dict(
-                    string_mean=self._note_frettings[0].string,
-                    fret_mean=self._note_frettings[0].fret,
-                ))
+                for entity in ChordFretting._entity_names:
+                    items = [nf.to_dict()[entity] for nf in self._note_frettings]
+                    # run _descriptor_functions
+                    for descriptor in FeatureConfig.descriptors_functions:
+                        self._features['{}_{}'.format(entity, descriptor)] = \
+                            FeatureConfig.descriptors_functions[descriptor](items)
 
-        else:
-            # use entities X descriptors (pd.describe()) as features
-            if FeatureConfiguration.descriptors:
-
-                # empty (=rest) --> fill all zeroes
-                if len(self._note_frettings) == 0:
-                    self._features.update(type(self)._descriptor_features_zero)
-
-                else:
-                    for entity in ChordFretting._entity_names:
-                        items = [nf.to_dict()[entity] for nf in self._note_frettings]
-                        # run _descriptor_functions
-                        for descriptor in self._descriptor_functions:
-                            self._features['{}_{}'.format(entity, descriptor)] = \
-                                self._descriptor_functions[descriptor](items)
-
-                # calculate the correlation coefficient between frets and strings
+            # calculate the correlation coefficient between frets and strings
+            if FeatureConfig.frettings_desc_corrcoef:
                 items = [list(nf.to_dict().values()) for nf in self._note_frettings]
                 if len(items) <= 1 or min(np.std(items, axis=0)) == 0.0:
                     cc = 0.0
@@ -738,54 +694,43 @@ class ChordFretting:
                     cc = np.corrcoef(items, rowvar=False)[1, 0]
                 self._features['correlation_coefficient'] = cc
 
-            if FeatureConfiguration.string_details:
-                # supporting 6 (?) strings, remember all details
-                # create all empty first
-                for string in range(1, FeatureConfiguration.num_strings+1):
-                    self._features['string{}_played'.format(string)] = False
-                    self._features['string{}_fret'.format(string)] = 0
-                # then add actually played ones
-                for note_fretting in self._note_frettings:
-                    if note_fretting.string <= FeatureConfiguration.num_strings:
-                        self._features['string{}_played'.format(note_fretting.string)] = True
-                        self._features['string{}_fret'.format(note_fretting.string)] = note_fretting.fret
+        if FeatureConfig.frettings_vectorised:
+            # supporting 6 (?) strings, remember all details
+            # create all empty first
+            for string in range(1, FeatureConfig.num_strings+1):
+                self._features['string{}_played'.format(string)] = False
+                self._features['string{}_fret'.format(string)] = 0
+            # then add actually played ones
+            for note_fretting in self._note_frettings:
+                if note_fretting.string <= FeatureConfig.num_strings:
+                    self._features['string{}_played'.format(note_fretting.string)] = True
+                    self._features['string{}_fret'.format(note_fretting.string)] = note_fretting.fret
 
-            if FeatureConfiguration.fret_details:
-                # supporting 24 (?) frets, count how often each fret is played
-                # create all empty first
-                for fret in range(FeatureConfiguration.num_frets+1):
-                    self._features['fret{}_played'.format(fret)] = 0
-                # then add actually played ones
-                for note_fretting in self._note_frettings:
-                    if note_fretting.fret <= FeatureConfiguration.num_frets:
-                        self._features['fret{}_played'.format(note_fretting.fret)] += 1
-
-            if FeatureConfiguration.detail_matrix:
-                # single fret features (complete boolean map)
-                # create all empty first
-                for string in range(1, FeatureConfiguration.num_strings+1):
-                    for fret in range(FeatureConfiguration.num_frets+1):
-                        self._features['string{}_fret{:02n}_played'.format(string, fret)] = False
-                # then add actually played ones
-                for note_fretting in self._note_frettings:
-                    if note_fretting.string <= FeatureConfiguration.num_strings \
-                            and note_fretting.fret <= FeatureConfiguration.num_frets:
-                        self._features['string{}_fret{:02n}_played'.format(
-                            note_fretting.string, note_fretting.fret)] = True
+        if FeatureConfig.frettings_sparse:
+            # single fret features (complete boolean map)
+            # create all empty first
+            for string in range(1, FeatureConfig.num_strings+1):
+                for fret in range(FeatureConfig.num_frets+1):
+                    self._features['string{}_fret{:02n}_played'.format(string, fret)] = False
+            # then add actually played ones
+            for note_fretting in self._note_frettings:
+                if note_fretting.string <= FeatureConfig.num_strings \
+                        and note_fretting.fret <= FeatureConfig.num_frets:
+                    self._features['string{}_fret{:02n}_played'.format(
+                        note_fretting.string, note_fretting.fret)] = True
 
         self._add_heuristic_features()
-        self._add_previous_features()
-        self._cost = None  # empty cost, so it has to be recalculated next time!
+        self._cost = None  # delete cost, so it has to be recalculated next time
 
     def _update_next_pitch_features(self):
-        if FeatureConfiguration.pitch:
+        if FeatureConfig.pitch:
             self._features.update(dict(zip(
-                ['next_pitch_{}'.format(ii) for ii in range(1, FeatureConfiguration.num_strings + 1)],
+                ['next_pitch_{}'.format(ii) for ii in range(1, FeatureConfig.num_strings + 1)],
                 [pitch.pitch for pitch in list(self._next_pitches)] +
-                [0 for _ in range(FeatureConfiguration.num_strings - len(self._next_pitches))]
+                [0 for _ in range(FeatureConfig.num_strings - len(self._next_pitches))]
             )))
 
-        if FeatureConfiguration.pitch_descriptors:
+        if FeatureConfig.pitch_desc:
             # empty (next=rest) --> fill all zeroes
             if len(self._next_pitches) == 0:
                 self._features.update(type(self)._descriptor_pitches_zero)
@@ -793,59 +738,31 @@ class ChordFretting:
             else:
                 pitches = [pp.pitch for pp in list(self._next_pitches)]
                 # run _descriptor_functions
-                for descriptor in type(self)._descriptor_functions:
+                for descriptor in FeatureConfig.descriptors_functions:
                     self._features['next_pitches_{}'.format(descriptor)] = \
-                        self._descriptor_functions[descriptor](pitches)
+                        FeatureConfig.descriptors_functions[descriptor](pitches)
 
-        if FeatureConfiguration.pitch_sparse:
+        if FeatureConfig.pitch_sparse:
             # init all 0
             pitch_counts = dict([(pitch, 0)
-                                 for pitch in range(FeatureConfiguration.pitch_sparse_min,
-                                                    FeatureConfiguration.pitch_sparse_max+1)])
+                                 for pitch in range(FeatureConfig.pitch_sparse_min,
+                                                    FeatureConfig.pitch_sparse_max + 1)])
 
             # set pitches
             for pitch in list(self._next_pitches):
-                if FeatureConfiguration.pitch_sparse_min <= pitch.pitch <= FeatureConfiguration.pitch_sparse_max:
+                if FeatureConfig.pitch_sparse_min <= pitch.pitch <= FeatureConfig.pitch_sparse_max:
                     pitch_counts[pitch.pitch] += 1
                 else:
                     warnings.warn('Pitch out of observed range: {} (Range {}-{})'.format(
-                        pitch.pitch, FeatureConfiguration.pitch_sparse_min, FeatureConfiguration.pitch_sparse_max
+                        pitch.pitch, FeatureConfig.pitch_sparse_min, FeatureConfig.pitch_sparse_max
                     ))
 
             pitch_counts = dict(zip(['next_has_pitch_{}'.format(kk)
                                      for kk in pitch_counts], pitch_counts.values()))
             self._features.update(pitch_counts)
 
-    def _add_previous_features(self) -> None:
-        """
-        add features from previous chord frettings
-        """
-
-        if self._features == {}:
-            self._extract_features()
-
-        # delta features: current - prev_1
-        if FeatureConfiguration.delta:
-            for feature_name in list(self._features.keys()):
-                if not feature_name.startswith('prev') and not feature_name.startswith('delta'):
-                    self._features['delta_{}'.format(feature_name)] = \
-                        self._features[feature_name] - self.previous.features[feature_name]
-
-        prev_x = self  # prev 0 is self
-
-        # go back step by step
-        for current_depth in range(1, FeatureConfiguration.max_depth + 1):
-
-            # copy previous features
-            prev_x = prev_x.previous  # go one step back
-
-            for feature_name in list(self._features.keys()):
-                if FeatureConfiguration.prev and not feature_name.startswith('prev'):
-                    self._features['prev{}_{}'.format(current_depth, feature_name)] = \
-                        prev_x.features[feature_name]
-
     def _add_heuristic_features(self) -> None:
-        if FeatureConfiguration.heuristics:
+        if FeatureConfig.heuristics:
             self._features.update(dict(
                 heuristic_distance_move=self.heuristic_distance_move(1),
                 heuristic_distance_move_fret=self.heuristic_distance_move(1, True),
@@ -879,10 +796,10 @@ class ChordFretting:
         return dd
 
     def heuristic_distance_move(self, minkowski_order=2, fret_only=False):
-        string = self.features['string_mean']
-        prev_string = self.previous.features['string_mean']
-        fret = self.features['fret_mean']
-        prev_fret = self.previous.features['fret_mean']
+        string = self._features['string_mean']
+        prev_string = self.previous.features_raw['string_mean']
+        fret = self._features['fret_mean']
+        prev_fret = self.previous.features_raw['fret_mean']
 
         if fret_only:
             return self.minkowski_distance(fret, prev_fret, minkowski_order=minkowski_order)
@@ -917,24 +834,51 @@ class ChordFretting:
         return not self == other
 
     @property
-    def features(self) -> dict:
+    def features_raw(self) -> dict:
+        """
+        returns the features of the current fretting
+        """
         if self._features == {}:
             self._extract_features()
         return self._features
 
     @property
+    def features(self) -> dict:
+        """
+        returns the features of the current fretting
+        can be either the features or DELTA features
+        """
+        if FeatureConfig.DELTA_MODE:
+            return self.features_delta
+        else:
+            return self.features_raw
+
+    @property
+    def features_delta(self) -> dict:
+        delta_features = {}
+        assert len(self.previous.features_raw) == len(self.features_raw)
+        for key in self.features_raw:
+            # shift next_ features so they are in line with the rest
+            if key.startswith('next'):
+                delta_features[key.replace('next_', '')] = \
+                    self.previous.features_raw[key] - self.previous.previous.features_raw[key]
+            else:
+                delta_features[key] = self.features_raw[key] - self.previous.features_raw[key]
+        return delta_features
+
+    @property
     def duration(self):
         return self._duration
 
-    def to_ascii_tab(self, string_config: StringConfigurationBase=None) -> list:
+    def to_ascii_tab(self, string_config: StringConfigBase=None) -> list:
         """
         converts the chord fretting to a simple text representation
         :param string_config: string configuration object
-        :type string_config: StringConfigurationBase
+        :type string_config: StringConfigBase
         """
         # sanity check
-        assert string_config is None or isinstance(string_config, StringConfigurationBase), \
-            '{} is not of type StringConfigurationBase!'.format(string_config)
+        assert string_config is None or isinstance(string_config, StringConfigBase), \
+            '{} is not of type StringConfigBase!'.format(string_config)
 
         # deal with number of strings
         if len(self.note_frettings) > 0:
@@ -974,7 +918,10 @@ class ChordFretting:
         return [note_fretting.to_tuple() for note_fretting in self.note_frettings]
 
     def get_chord(self) -> Chord:
-        return Chord(self._duration, [fretting.get_pitch(self._string_config) for fretting in self.note_frettings])
+        return Chord(
+            self._duration, [fretting.get_pitch(self._string_config) for fretting in self.note_frettings],
+            self._part_of_previous
+        )
 
     @property
     def note_frettings(self) -> list:
@@ -1046,17 +993,17 @@ class ChordFrettingSequence:
         self._frettings.append(cf)
 
     # def branch(self, chord_frettings: typing.List[ChordFretting]) -> typing.List['ChordFrettingSequence']:
-    def branch(self, chord: Chord, string_config: StringConfigurationBase,
-               evaluator: ChordFrettingEvaluatorBase, pruning_config: PruningConfiguration):
+    def branch(self, chord: Chord, string_config: StringConfigBase,
+               evaluator: ChordFrettingEvaluatorBase, pruning_config: PruningConfig):
         """
         efficient clone and append:
         keep same ChordFretting instances up to now, but not new one --> save re-evaluation time
         :param chord: The chord which will be used to generate the frettings
         :type chord: Chord
         :param string_config: string configuration object
-        :type string_config: StringConfigurationBase
+        :type string_config: StringConfigBase
         :param pruning_config: pruning_config configuration
-        :type pruning_config: PruningConfiguration
+        :type pruning_config: PruningConfig
         :param evaluator: Evalutator for pruning_config purposes
         :type evaluator: ChordFrettingEvaluatorBase
         :return: possible frettings of the chord
@@ -1065,7 +1012,7 @@ class ChordFrettingSequence:
         """
 
         assert isinstance(chord, Chord)
-        assert isinstance(string_config, StringConfigurationBase)
+        assert isinstance(string_config, StringConfigBase)
         assert isinstance(evaluator, ChordFrettingEvaluatorBase)
 
         previous = None
@@ -1084,20 +1031,20 @@ class ChordFrettingSequence:
             sequences.append(seq)
         return sequences
 
-    def to_ascii_tab(self, string_config: StringConfigurationBase,
+    def to_ascii_tab(self, string_config: StringConfigBase,
                      n_first: int=None, do_print: bool=False) -> list:
         """
         converts the chord fretting sequence to a simple text representation
         :param string_config: string configuration object
-        :type string_config: StringConfigurationBase
+        :type string_config: StringConfigBase
         :param n_first: only show n first chords
         :type n_first: int
         :param do_print: print directly to console?
         :type do_print: bool
         """
         # sanity check
-        assert isinstance(string_config, StringConfigurationBase), \
-            '{} is not of type StringConfigurationBase!'.format(string_config)
+        assert isinstance(string_config, StringConfigBase), \
+            '{} is not of type StringConfigBase!'.format(string_config)
         if n_first is None:
             n_first = len(self._frettings)
         assert type(n_first) is int, 'n_first must be int: {}'.format(n_first)
