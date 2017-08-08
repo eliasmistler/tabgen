@@ -378,12 +378,6 @@ class Parser:
                         else:
                             note_fretting = chord_fretting.note_frettings[subidx]
 
-                        # note_fretting = [nf for nf in chord_fretting.note_frettings
-                        #                  if nf.get_pitch(string_config) == pitch][0]
-                        # make sure we're at the right position and the chord has not changed
-                        if not note_fretting.get_pitch(string_config) == pitch:
-                            assert (note_fretting.get_pitch(string_config) == pitch)
-
                         xml_note.find('string').text = str(string_config.num_strings - note_fretting.string)
                         xml_note.find('fret').text = str(note_fretting.fret)
 

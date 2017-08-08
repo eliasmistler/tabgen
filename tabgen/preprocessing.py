@@ -95,7 +95,7 @@ def merge_files() -> None:
     print('File merged: {}'.format(Path.FEATURE_FILE))
 
 
-def add_probabilities(rounding_digits=-1) -> None:
+def add_probabilities(rounding_digits=3) -> None:
     """
     Count feature vector occurrences
     """
@@ -109,7 +109,6 @@ def add_probabilities(rounding_digits=-1) -> None:
     )
     print('done')
 
-    # ignore next_ columns, but keep in table
     data_flat = dataframe.values.astype(np.float32)
     n_features = len(dataframe.columns)
 

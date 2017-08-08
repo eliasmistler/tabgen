@@ -39,22 +39,25 @@ class Path(object):
 
 # Core settings for feature generation
 class FeatureConfig(object):
+    # SETTINGS START HERE
     HEURISTIC_PREFILTER = True
     HEURISTIC_MAX_FRETS = 4  # max fret range (finger spread) within a chord
     HEURISTIC_MAX_FINGERS = 4  # max number of different frets (i.e. fingers, considering barre)
 
-    CHORDS_AS_NOTES = False  # scan through chords vertically instead of using
-    DELTA_MODE = True
+    CHORDS_AS_NOTES = False  # scan through chords vertically instead of using explicit chord handling
+    DELTA_MODE = False
 
     max_depth = 1  # depth of features (i.e. go back (max_depth) chords)
+    num_strings = 6
+    num_frets = 24
+
+    basic = False  # duration, count, is_chord, ...
 
     frettings_vectorised = False  # extract string{#}_played (bool) and string{#}_fret (int 0-24)?
     frettings_sparse = False  # string{#}_fret{#}_played --> full boolean maps
-    basic = False  # duration, count, is_chord, ...
-    num_strings = 6
-    num_frets = 24
     frettings_desc = True  # extract general frettings_desc? (mean, min, max, ...)
     frettings_desc_corrcoef = True
+
     descriptors_functions = {
         'mean': np.mean,
         'std': np.std,  # if len(x) > 0 else 0,
@@ -65,13 +68,16 @@ class FeatureConfig(object):
         'max': max,
         'range': lambda x: max(x) - min(x)
     }
+
     pitch = False  # include the pitches at the next time step (for RNN predictions)
     pitch_desc = True  # ... as frettings_desc
     pitch_sparse = False  # ... as sparse encoding
     pitch_sparse_min = 11
     pitch_sparse_max = 88
+
     heuristics = True
 
+    # SETTINGS END HERE - DO NOT CHANGE BELOW
     num_features_total = (
         (frettings_vectorised * 2 * num_strings) +
         (frettings_sparse * num_strings * (num_frets + 1)) +
@@ -108,3 +114,7 @@ assert type(FeatureConfig.max_depth) is int \
     and type(FeatureConfig.frettings_vectorised) is bool \
     and type(FeatureConfig.frettings_desc) is bool \
     and type(FeatureConfig.num_strings) is int
+
+# raise NotImplementedError()
+# TODO: sequential model sometimes ends up with no possible frettings --> instruments are discarded
+# try: 213511 - Aerosmith - Dream On (guitar pro).gp5.mscx

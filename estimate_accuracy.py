@@ -27,6 +27,11 @@ evaluators = {
     # 'lstm': evaluation.LSTMChordFrettingEvaluator(),
 }
 
+to_train = ['regression', 'lstm']
+for mm in to_train:
+    if mm in evaluators and not evaluators[mm].is_trained:
+        evaluators[mm].train()
+
 pruning = modelling.PruningConfig(
     candidate_beam_width=0.5, max_candidates=2,
     sequence_beam_width=0.5, max_sequences=3,

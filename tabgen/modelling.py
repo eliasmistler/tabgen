@@ -101,13 +101,16 @@ class Pitch:
     def pitch(self) -> int:
         return self._pitch
 
-    @property
-    def note_name(self, note_only: bool=True) -> str:
+    def get_note_name(self, latex: bool=False) -> str:
         pitch_sequence = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
         name = str(pitch_sequence[self._pitch % 12])
-        if not note_only:
-            name += str(self._pitch / 12)
+
+        if latex:
+            name = name.replace('#', '\sharp')
+            octave = int(self._pitch / 12)
+            return '${}_{}$'.format(name, octave)
+
         if self._fully_muted:
             name = '({})'.format(name)
         return name
@@ -563,7 +566,7 @@ class ChordFretting:
                       for descriptor in FeatureConfig.descriptors_functions])
 
         self._duration = duration
-        self._note_frettings = sorted(note_frettings, key=lambda x: x.string)
+        self._note_frettings = note_frettings
         self._next_pitches = []  # create attribute ...
         self.next_pitches = next_pitches  # ... then call setter
         self._string_config = string_config
@@ -638,13 +641,14 @@ class ChordFretting:
 
     def _update_cost(self, force: bool=False) -> None:
         if force or self._cost is None:
+            self._cost = self._evaluator.evaluate(self)
+
             # zero join cost trick for repetition of chords
             # and zero cost for rests
-            if self == self.previous \
+            # sometimes, predictions < 0 -> only crop to 0 when > 0
+            if (self == self.previous and self._cost > 0.0) \
                     or len(self._note_frettings) == 0:
                 self._cost = 0.0
-            else:
-                self._cost = self._evaluator.evaluate(self)
 
     def _extract_features(self) -> None:
         """
@@ -1050,7 +1054,7 @@ class ChordFrettingSequence:
         assert type(n_first) is int, 'n_first must be int: {}'.format(n_first)
 
         # start line with the string name
-        tab = ['{} '.format(pitch.note_name) for pitch in string_config.string_pitches[::-1]]
+        tab = ['{} '.format(pitch.get_note_name()) for pitch in string_config.string_pitches[::-1]]
 
         for chord_fretting in self._frettings[:n_first]:
             chord_tab = chord_fretting.to_ascii_tab(string_config)

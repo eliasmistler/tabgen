@@ -4,7 +4,7 @@ from tabgen import processing
 from tabgen import modelling
 # import subprocess
 
-input_files = ['./data/riff.mscx']
+input_files = ['./data/evaluation_input/215155 - Black Sabbath - Paranoid (guitar pro).gp5.mscx']
 
 # evaluator = evaluation.LSTMChordFrettingEvaluator()
 # if not evaluator.is_trained:
@@ -26,7 +26,7 @@ parser = processing.Parser(evaluator)
 solver = processing.Solver(evaluator, pruning)
 
 # loop over multiple files
-solver.solve_multi(input_files, parser, save_files=False, verbose=2)
+solver.solve_multi(input_files, parser, save_files=True, verbose=2)
 
 # out_file = input_files[0].replace(Path.VALIDATION_INPUT, Path.VALIDATION_OUTPUT).replace('.mscx', '_lstm.mscx')
 # subprocess.call('{} "{}" "{}"'.format(Path.MSCORE, input_files[0], out_file))
