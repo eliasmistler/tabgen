@@ -1,0 +1,5 @@
+<application>
+  <component name="LafManager">
+    <laf class-name="com.sun.java.swing.plaf.windows.WindowsLookAndFeel" />
+  </component>
+</application>

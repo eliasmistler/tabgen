@@ -1,0 +1,5 @@
+<keymap version="1" name="Default copy" parent="$default">
+  <action id="InspectCode">
+    <keyboard-shortcut first-keystroke="ctrl f10" />
+  </action>
+</keymap>
