@@ -2,15 +2,11 @@
 module tabgen.processing
 
 Description:  Processing classes needed for file handling and tab generation
-              The solver (FrettingGenerator) is generic, the actual scoring functions
+              The Solver is generic, the actual scoring functions
                 are implemented in tabgen.evaluation
-
-Contains:     FrettingGenerator
-              MuseScoreXMLParser
 
 Author:       Elias Mistler
 Institute:    The University of Edinburgh
-Last changed: 2017-06
 """
 import xml.etree.ElementTree as ElementTree
 
@@ -371,7 +367,7 @@ class Parser:
 
                     # update all notes in the chord
                     for subidx, xml_note in enumerate(xml_notes):
-                        pitch = int(xml_note.find('pitch').text)
+                        # pitch = int(xml_note.find('pitch').text)
 
                         if FeatureConfig.CHORDS_AS_NOTES:
                             note_fretting = chord_frettings[idx + subidx].note_frettings[0]

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # from tabgen.definitions import *
 from tabgen import evaluation
 from tabgen import processing

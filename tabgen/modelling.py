@@ -8,17 +8,8 @@ Description:  Objects modelling the structure of the transcription problem
               The two views are related through the instrument of interest,
                 which is represented by the StringConfigBase object
 
-Contains:     PruningConfig
-              StringConfigBase
-              Pitch
-              NoteFretting
-              Chord
-              ChordFretting
-              ChordFrettingSequence
-
 Author:       Elias Mistler
 Institute:    The University of Edinburgh
-Last changed: 2017-06
 """
 from .definitions import *
 

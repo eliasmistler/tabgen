@@ -2,16 +2,10 @@
 module tabgen.evaluation
 
 Description:  Evaluator classes for tabgen
-              All classes have to inherit from the base class ChordFrettingEvaluator
-
-Contains:     ChordFrettingEvaluator
-              RandomChordFrettingEvaluator
-              BaselineChordFrettingEvaluator
-              RegressionChordFrettingEvaluator
+              All classes have to inherit from the base class ChordFrettingEvaluatorBase
 
 Author:       Elias Mistler
 Institute:    The University of Edinburgh
-Last changed: 2017-06
 """
 
 from sklearn.exceptions import NotFittedError
@@ -88,17 +82,19 @@ class ProbabilityLookupEvaluator(ChordFrettingEvaluatorBase):
 
     def evaluate(self, fretting: ChordFretting) -> float:
         # setting
-        rounding_digits = 2
-
-        columns = [col for col in pd.read_csv(Path.FEATURE_FILE, nrows=0).columns if not col.startswith('prob')]
+        # rounding_digits = 2
+        #
+        # columns = [col for col in pd.read_csv(Path.FEATURE_FILE, nrows=0).columns if not col.startswith('prob')]
 
         # mask to exclude lookahead features
-        mask = [int(not col.startswith('next')) for col in columns]
+        # mask = [int(not col.startswith('next')) for col in columns]
 
-        # TODO ProbabilityLookupEvaluator - find probability or set low (e.g. 0.01)
-        data_flat = np.array([[fretting.features[ff] for ff in columns if not ff.startswith('next')]], np.float32)
+        # TODO: ProbabilityLookupEvaluator - find probability or set low (e.g. 0.01)
+        # data_flat = np.array([[fretting.features[ff] for ff in columns if not ff.startswith('next')]], np.float32)
+        # data_flat = np.round(data_flat, rounding_digits)
 
         # key = row.
+        return 0.0
 
 
 class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
@@ -112,7 +108,7 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
 
         columns = pd.read_csv(Path.FEATURE_FILE, nrows=0).columns
 
-        self._target_names = ['probs_{}'.format(ii) for ii in range(1, FeatureConfig.max_depth + 1)]
+        self._target_names = ['probs_{}'.format(ii) for ii in range(1, FeatureConfig.context_length + 1)]
         self._source_names = [col for col in columns if not col.startswith('probs_') and not col.startswith('count')]
 
         print('Initialising Regression Model. \n\t{} source fields: {}\n\t{} target fields: {}'.format(
@@ -125,8 +121,8 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         from keras.layers import Dense, Activation, LSTM
         self._model = Sequential([
             LSTM(self._batch_size, return_sequences=False,
-                 input_shape=(FeatureConfig.max_depth + 1, len(self._source_names))),
-            # Dense(self._batch_size, input_shape=((FeatureConfig.max_depth + 1) * len(self._source_names),), ),
+                 input_shape=(FeatureConfig.context_length + 1, len(self._source_names))),
+            # Dense(self._batch_size, input_shape=((FeatureConfig.context_length + 1) * len(self._source_names),), ),
             Dense(1024),
             Activation('tanh'),
             Dense(512),
@@ -177,17 +173,17 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         # make probabilities into neg. log likelihood
         yy = dataframe[self._target_names].values.astype('float32')
         likelihood = yy[:, 0]
-        for context_length in range(1, FeatureConfig.max_depth):
+        for context_length in range(1, FeatureConfig.context_length):
             likelihood = np.multiply(likelihood, yy[:, context_length])
         yy = -np.log(likelihood)
 
         # shape xx array
         xx = dataframe[self._source_names].values.astype('float32')
         xx = xx.reshape((xx.shape[0], 1, xx.shape[1]))
-        if FeatureConfig.max_depth > 0:
+        if FeatureConfig.context_length > 0:
             xx_prev = np.concatenate([
                 np.concatenate([np.zeros_like(xx[0:i]), xx[:-i, :, :]])
-                for i in range(FeatureConfig.max_depth, 0, -1)
+                for i in range(FeatureConfig.context_length, 0, -1)
             ], axis=1)
             xx = np.concatenate([xx_prev, xx], axis=1)
 
@@ -250,9 +246,9 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         if not self.is_trained:
             raise NotFittedError()
 
-        # get handles to relevant frettings (current and previous (FeatureConfig.max_depth))
+        # get handles to relevant frettings (current and previous (FeatureConfig.context_length))
         fretting_handles = [fretting]
-        while len(fretting_handles) < FeatureConfig.max_depth + 1:
+        while len(fretting_handles) < FeatureConfig.context_length + 1:
             fretting_handles.append(fretting_handles[-1].previous)
         fretting_handles = fretting_handles[::-1]
 
@@ -305,8 +301,8 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         from keras.layers import Dense, Activation, LSTM
         self._model = Sequential([
             LSTM(self._batch_size, return_sequences=False,
-                 input_shape=(FeatureConfig.max_depth, len(self._source_names))),
-            # Dense(self._batch_size, input_shape=(FeatureConfig.max_depth * len(self._source_names),), ),
+                 input_shape=(FeatureConfig.context_length, len(self._source_names))),
+            # Dense(self._batch_size, input_shape=(FeatureConfig.context_length * len(self._source_names),), ),
             Dense(1024),
             Activation('tanh'),
             Dense(512),
@@ -356,7 +352,7 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         xx = xx.reshape((xx.shape[0], 1, xx.shape[1]))
         xx = np.concatenate([
             np.concatenate([np.zeros_like(xx[0:i]), xx[:-i, :, :]])
-            for i in range(FeatureConfig.max_depth, 0, -1)
+            for i in range(FeatureConfig.context_length, 0, -1)
         ], axis=1)
 
         # scale & remember scaling factor
@@ -386,7 +382,7 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         # build xx from previous frettings
         prev_x = fretting.previous
         xx = []
-        for ii in range(1, FeatureConfig.max_depth + 1):
+        for ii in range(1, FeatureConfig.context_length + 1):
             xx = [np.array(
                 [prev_x.features[name] for name in self._source_names]
             )] + xx
@@ -397,7 +393,7 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         # get yy
         yy = np.array([[fretting.features[ff] for ff in self._target_names]]) / self._max_vals[1]
 
-        assert xx.shape == (1, FeatureConfig.max_depth, len(self._source_names))
+        assert xx.shape == (1, FeatureConfig.context_length, len(self._source_names))
         assert yy.shape == (1, len(self._target_names))
 
         # reshape for non-LSTM-like input

@@ -1,3 +1,11 @@
+"""
+module tabgen.base
+
+Description:  Processing functions to turn input tablatures into training data
+
+Author:       Elias Mistler
+Institute:    The University of Edinburgh
+"""
 from .definitions import *
 from tabgen import processing, evaluation
 from tabgen.modelling import InvalidFrettingException
@@ -87,7 +95,7 @@ def merge_files() -> None:
                         target.write(line)
 
                     # add empty lines to get context clean
-                    for _ in range(FeatureConfig.max_depth + 1):
+                    for _ in range(FeatureConfig.context_length + 1):
                         target.write(empty_line)
 
                 csv.close()
@@ -123,7 +131,7 @@ def add_probabilities(rounding_digits=3) -> None:
         data_flat = data_flat.round(rounding_digits)
 
     # iterate through context lengths, find the respective counts and create a new column in dataframe
-    for context_length in range(1, FeatureConfig.max_depth + 1):
+    for context_length in range(1, FeatureConfig.context_length + 1):
         print('Calculating probabilities for context length {}'.format(context_length))
 
         counts = {}
