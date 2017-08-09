@@ -770,19 +770,19 @@ class ChordFretting:
             self._features.update(dict(
                 heuristic_distance_move=self.heuristic_distance_move(1),
                 heuristic_distance_move_fret=self.heuristic_distance_move(1, True),
-                heuristic_distance_steady=self.calc_distance_steady(),
-                heuristic_distance_steady_fret=self.calc_distance_steady(1, True),
-                heuristic_skipped_strings=self.calc_skipped_strings(),
+                heuristic_distance_steady=self.heuristic_distance_steady(),
+                heuristic_distance_steady_fret=self.heuristic_distance_steady(1, True),
+                heuristic_skipped_strings=self.heuristic_skipped_strings(),
                 heuristic_all_zero=int(all([nf.fret == 0 for nf in self._note_frettings])),
             ))
 
-    def calc_skipped_strings(self) -> int:
+    def heuristic_skipped_strings(self) -> int:
         strings = [nf.string for nf in self._note_frettings]
         if len(strings) == 0:
             return 0
         return max(strings) - min(strings) + 1 - len(strings)
 
-    def calc_distance_steady(self, minkowski_order=2, fret_only=False):
+    def heuristic_distance_steady(self, minkowski_order=2, fret_only=False):
         """
         sum of all combinations of note fretting distances
         """

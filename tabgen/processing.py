@@ -486,9 +486,7 @@ class Solver:
                     break  # skip this instrument
 
                 # get accuracy score
-                n_total = len(sequence_original)
-                n_same = sum([sequence_original[ii] == sequence_generated[ii] for ii in range(n_total)])
-                accuracy = float(n_same) / n_total * 100
+                accuracy = self.get_accuracy(sequence_generated, sequence_original)
                 accuracies.append(accuracy)
 
                 # print generated tab
@@ -507,12 +505,36 @@ class Solver:
                 target_file = os.path.join(Path.VALIDATION_OUTPUT, os.path.relpath(target_file, Path.VALIDATION_INPUT))
                 parser.save(target_file)
 
-        if verbose >= 1:
-            print(self._evaluator.name,
-                  '\n\taccuracies:', accuracies,
-                  '\n\tmean:', np.mean(accuracies))
+        print(self._evaluator.name,
+              '\n\taccuracies:', accuracies,
+              '\n\tmean:', np.mean(accuracies))
 
         return sequences
+
+    @staticmethod
+    def get_accuracy(sequence_generated: tabgen.modelling.ChordFrettingSequence,
+                     sequence_original: tabgen.modelling.ChordFrettingSequence, detail: bool=True) -> float:
+        """
+        get the accuracy measure between to sequences
+        :param sequence_generated: the generated sequence to assess
+        :param sequence_original: the original sequence to compare against
+        :param detail: base accuracy on note frettings (to make chord- and sequential processing comparable)
+        :return:
+        """
+        assert len(sequence_generated) == len(sequence_original)
+        if detail:
+            n_total = sum([len(cf) for cf in sequence_original])
+            assert n_total == sum([len(cf) for cf in sequence_generated])
+            n_same = 0
+            for oo, gg in zip(sequence_original, sequence_generated):
+                n_same += sum([onf == gnf for onf, gnf in
+                               zip(sorted(oo.note_frettings, key=lambda nf: nf.string),
+                                   sorted(gg.note_frettings, key=lambda nf: nf.string))])
+        else:
+            n_total = len(sequence_original)
+            n_same = sum([oo == gg for oo, gg in zip(sequence_original, sequence_generated)])
+
+        return float(n_same) / n_total * 100.0
 
     def solve(self, chord_sequence: list, string_config: StringConfigBase, verbose: int=2) \
             -> tabgen.modelling.ChordFrettingSequence:

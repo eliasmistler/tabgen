@@ -45,7 +45,7 @@ class FeatureConfig(object):
     HEURISTIC_MAX_FINGERS = 4  # max number of different frets (i.e. fingers, considering barre)
 
     CHORDS_AS_NOTES = False  # scan through chords vertically instead of using explicit chord handling
-    DELTA_MODE = False
+    DELTA_MODE = False  # use first derivation of features instead of plain features
 
     max_depth = 1  # depth of features (i.e. go back (max_depth) chords)
     num_strings = 6
@@ -53,9 +53,9 @@ class FeatureConfig(object):
 
     basic = False  # duration, count, is_chord, ...
 
-    frettings_vectorised = False  # extract string{#}_played (bool) and string{#}_fret (int 0-24)?
+    frettings_vectorised = True  # extract string{#}_played (bool) and string{#}_fret (int 0-24)?
     frettings_sparse = False  # string{#}_fret{#}_played --> full boolean maps
-    frettings_desc = True  # extract general frettings_desc? (mean, min, max, ...)
+    frettings_desc = False  # extract general frettings_desc? (mean, min, max, ...)
     frettings_desc_corrcoef = True
 
     descriptors_functions = {
@@ -68,14 +68,19 @@ class FeatureConfig(object):
         'max': max,
         'range': lambda x: max(x) - min(x)
     }
+    if CHORDS_AS_NOTES:
+        # if only looking at one note, there is no point in all the descriptors
+        descriptors_functions = {
+            'mean': np.mean
+        }
 
     pitch = False  # include the pitches at the next time step (for RNN predictions)
-    pitch_desc = True  # ... as frettings_desc
-    pitch_sparse = False  # ... as sparse encoding
+    pitch_desc = False  # ... as frettings_desc
+    pitch_sparse = True  # ... as sparse encoding
     pitch_sparse_min = 11
     pitch_sparse_max = 88
 
-    heuristics = True
+    heuristics = False
 
     # SETTINGS END HERE - DO NOT CHANGE BELOW
     num_features_total = (

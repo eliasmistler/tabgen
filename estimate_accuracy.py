@@ -24,7 +24,7 @@ evaluators = {
     # 'baseline_heuristic_distance_move': evaluation.BaselineChordFrettingEvaluator(dict(
     #     heuristic_distance_move=1.0)),
     'regression': evaluation.RegressionChordFrettingEvaluator(),
-    # 'lstm': evaluation.LSTMChordFrettingEvaluator(),
+    'lstm': evaluation.LSTMChordFrettingEvaluator(),
 }
 
 to_train = ['regression', 'lstm']
@@ -41,4 +41,4 @@ pruning = modelling.PruningConfig(
 for eval_name, evaluator in evaluators.items():
     parser = processing.Parser(evaluator)
     solver = processing.Solver(evaluator, pruning)
-    solver.solve_multi(input_files, parser, True, 2)
+    solver.solve_multi(input_files, parser, True, 0)

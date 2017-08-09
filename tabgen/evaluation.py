@@ -95,7 +95,7 @@ class ProbabilityLookupEvaluator(ChordFrettingEvaluatorBase):
         # mask to exclude lookahead features
         mask = [int(not col.startswith('next')) for col in columns]
 
-        # TODO ...
+        # TODO ProbabilityLookupEvaluator - find probability or set low (e.g. 0.01)
         data_flat = np.array([[fretting.features[ff] for ff in columns if not ff.startswith('next')]], np.float32)
 
         # key = row.
@@ -306,6 +306,7 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         self._model = Sequential([
             LSTM(self._batch_size, return_sequences=False,
                  input_shape=(FeatureConfig.max_depth, len(self._source_names))),
+            # Dense(self._batch_size, input_shape=(FeatureConfig.max_depth * len(self._source_names),), ),
             Dense(1024),
             Activation('tanh'),
             Dense(512),
@@ -399,6 +400,9 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         assert xx.shape == (1, FeatureConfig.max_depth, len(self._source_names))
         assert yy.shape == (1, len(self._target_names))
 
+        # reshape for non-LSTM-like input
+        # xx = xx.reshape(1, -1)
+
         # Get cost as prediction loss from model
         cost = self._model.evaluate(xx, yy, verbose=0)
         return cost
@@ -409,6 +413,9 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         """
 
         xx, yy = self.load_training_data()
+
+        # reshape for non-LSTM-like input
+        # xx = xx.reshape((xx.shape[0], -1))
 
         # split into x and y, train and test sets
         train_size = int(len(xx) * train_relative)
