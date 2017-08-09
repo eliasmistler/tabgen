@@ -103,7 +103,7 @@ def merge_files() -> None:
     print('File merged: {}'.format(Path.FEATURE_FILE))
 
 
-def add_probabilities(rounding_digits=3) -> None:
+def add_probabilities() -> None:
     """
     Count feature vector occurrences
     """
@@ -125,10 +125,6 @@ def add_probabilities(rounding_digits=3) -> None:
     print('Targets: {}\nSource: {}'.format(
         [col for m, col in zip(mask, dataframe.columns) if m == 1.0], dataframe.columns)
     )
-
-    # rounding, to ignore small differences
-    if rounding_digits > -1:
-        data_flat = data_flat.round(rounding_digits)
 
     # iterate through context lengths, find the respective counts and create a new column in dataframe
     for context_length in range(1, FeatureConfig.context_length + 1):

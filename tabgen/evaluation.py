@@ -76,25 +76,37 @@ class BaselineChordFrettingEvaluator(ChordFrettingEvaluatorBase):
 
 
 class ProbabilityLookupEvaluator(ChordFrettingEvaluatorBase):
+    """
+    ProbabilityLookupEvaluator - do a probability lookup or fall back to a low value (~probabilty smoothing)
+    """
     def __init__(self):
         ChordFrettingEvaluatorBase.__init__(self, 'probability_lookup')
         self._probs = np.load(os.path.join(Path.DATA, 'probabilities_1.npy')).tolist()
 
-    def evaluate(self, fretting: ChordFretting) -> float:
-        # setting
-        # rounding_digits = 2
-        #
-        # columns = [col for col in pd.read_csv(Path.FEATURE_FILE, nrows=0).columns if not col.startswith('prob')]
-
         # mask to exclude lookahead features
-        # mask = [int(not col.startswith('next')) for col in columns]
+        self._columns = [col for col in pd.read_csv(Path.FEATURE_FILE, nrows=0).columns if not col.startswith('prob')]
+        self._mask = [int(not col.startswith('next')) for col in self._columns]
 
-        # TODO: ProbabilityLookupEvaluator - find probability or set low (e.g. 0.01)
-        # data_flat = np.array([[fretting.features[ff] for ff in columns if not ff.startswith('next')]], np.float32)
-        # data_flat = np.round(data_flat, rounding_digits)
+    def evaluate(self, fretting: ChordFretting) -> float:
 
-        # key = row.
-        return 0.0
+        # form data into the right shape
+        data = np.array([[fretting.features[ff] for ff in self._columns]], np.float32)
+        data = np.concatenate([
+            data * self._mask,
+            np.concatenate([
+                np.concatenate([np.zeros_like(data[0:1]), data[:-1, :]])
+            ], axis=1)
+        ], axis=1)
+        data = data[:, ::-1]
+
+        key = data[0].tobytes()
+
+        if key in self._probs:
+            prob = self._probs[key]
+        else:
+            prob = 0.001  # set a low probability for unseen sequences
+
+        return -np.log(prob)
 
 
 class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
