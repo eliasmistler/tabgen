@@ -28,19 +28,19 @@ pruning = modelling.PruningConfig(
     sequence_beam_width=999.9, max_sequences=1,
 )
 
-chord = modelling.Chord(1.0, [51, 58, 63, 65, 70], False)
-chord_sequence = []
-for pitch in chord.pitches:
-    chord_sequence.append(modelling.Chord(1.0, [pitch], len(chord_sequence) > 0))
 
 parser = processing.Parser(evaluator)
 solver = processing.Solver(evaluator, pruning)
 
-seq = solver.solve(chord_sequence, modelling.StringConfig.STANDARD_24_FRETS)
-seq.to_ascii_tab(modelling.StringConfig.STANDARD_24_FRETS, 30, True)
+# chord = modelling.Chord(1.0, [51, 58, 63, 65, 70], False)
+# chord_sequence = []
+# for pitch in chord.pitches:
+#     chord_sequence.append(modelling.Chord(1.0, [pitch], len(chord_sequence) > 0))
+# seq = solver.solve(chord_sequence, modelling.StringConfig.STANDARD_24_FRETS)
+# seq.to_ascii_tab(modelling.StringConfig.STANDARD_24_FRETS, 30, True)
 
-# # loop over multiple files
-# solver.solve_multi(input_files, parser, save_files=True, verbose=2)
+# loop over multiple files
+solver.solve_multi(input_files, parser, save_files=True, verbose=2)
 
 # out_file = input_files[0].replace(Path.VALIDATION_INPUT, Path.VALIDATION_OUTPUT).replace('.mscx', '_lstm.mscx')
 # subprocess.call('{} "{}" "{}"'.format(Path.MSCORE, input_files[0], out_file))

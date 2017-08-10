@@ -54,7 +54,7 @@ class FeatureConfig(object):
     # =================== #
 
     # pre-filtering
-    HEURISTIC_PREFILTER = True  # filter frettings before evaluating their cost
+    HEURISTIC_FILTER = True  # filter frettings before evaluating their cost
     HEURISTIC_MAX_FRETS = 4  # max fret range (finger spread) within a chord
     HEURISTIC_MAX_FINGERS = 4  # max number of different frets (i.e. fingers, considering barre)
 
@@ -69,7 +69,7 @@ class FeatureConfig(object):
     frettings_sparse = False  # sparse matrix: string{#}_fret{#}_played --> full boolean maps
     frettings_desc = True  # describe frettings by descriptors (descriptors_functions)
 
-    frettings_desc_corrcoef = True  # include correlation coefficient between string and fret distribution
+    frettings_desc_corr_coef = True  # include correlation coefficient between string and fret distribution
 
     context_length = 1  # go back (context_length) chords when evaluating
     num_strings = 6  # max. number of strings to be considered for sparse representation
@@ -88,7 +88,7 @@ class FeatureConfig(object):
     }
     if CHORDS_AS_NOTES:
         # if only looking at one note, there is no point in all the descriptors
-        frettings_desc_corrcoef = False
+        frettings_desc_corr_coef = False
         descriptors_functions = {
             'mean': np.mean
         }
@@ -109,7 +109,7 @@ class FeatureConfig(object):
     num_features_total = (
         (frettings_vectorised * 2 * num_strings) +
         (frettings_sparse * num_strings * (num_frets + 1)) +
-        (frettings_desc * (2 * len(descriptors_functions) + frettings_desc_corrcoef)) +
+        (frettings_desc * (2 * len(descriptors_functions) + frettings_desc_corr_coef)) +
         (basic * 5) +  # count, duration, is_chord, is_rest, is_note
         (pitch * num_strings) +
         (pitch_desc * len(descriptors_functions)) +
@@ -124,7 +124,7 @@ class FeatureConfig(object):
 
     # sanity check: FeatureConfig
     assert \
-        type(HEURISTIC_PREFILTER) is bool and \
+        type(HEURISTIC_FILTER) is bool and \
         type(HEURISTIC_MAX_FRETS) is int and \
         type(HEURISTIC_MAX_FINGERS) is int and \
         \
@@ -140,7 +140,7 @@ class FeatureConfig(object):
         type(frettings_vectorised) is bool and \
         type(frettings_sparse) is bool and \
         type(frettings_desc) is bool and \
-        type(frettings_desc_corrcoef) is bool and \
+        type(frettings_desc_corr_coef) is bool and \
         \
         type(descriptors_functions) is dict and \
         \

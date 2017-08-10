@@ -46,7 +46,7 @@ class Parser:
         parses an mscx file - or a file convertible to mscx
         :param file_path: path of the file to parse
         :type file_path: str
-        :param force_reload: reload even if (apparently) not neccessary?
+        :param force_reload: reload even if (apparently) not necessary?
         :type force_reload: bool
         """
         # sanity check
@@ -365,13 +365,13 @@ class Parser:
                     xml_notes = xml_chord.findall('Note')
 
                     # update all notes in the chord
-                    for subidx, xml_note in enumerate(xml_notes):
+                    for sub_idx, xml_note in enumerate(xml_notes):
                         # pitch = int(xml_note.find('pitch').text)
 
                         if FeatureConfig.CHORDS_AS_NOTES:
-                            note_fretting = chord_frettings[idx + subidx].note_frettings[0]
+                            note_fretting = chord_frettings[idx + sub_idx].note_frettings[0]
                         else:
-                            note_fretting = chord_fretting.note_frettings[subidx]
+                            note_fretting = chord_fretting.note_frettings[sub_idx]
 
                         xml_note.find('string').text = str(string_config.num_strings - note_fretting.string)
                         xml_note.find('fret').text = str(note_fretting.fret)
@@ -563,16 +563,21 @@ class Solver:
                                    string_config, self._evaluator, None, next_chord, None)]
 
         # subsequent chords
-        for idx, chord in tqdm(enumerate(chord_sequence[1:]), desc='solving', unit='chord', initial=1,
-                               total=len(chord_sequence), disable=verbose == 0):
+        for ii, chord in tqdm(enumerate(chord_sequence[1:]), desc='solving', unit='chord', initial=1,
+                              total=len(chord_sequence), disable=verbose == 0):
+
+            idx = ii + 1  # offset because of [1:]
+
+            if len(chord_sequence) > idx + 1:
+                next_chord = chord_sequence[idx + 1]
+
             candidate_sequences_new = []
 
             pruning = self._pruning_config
 
             # don't prune within a chord in the sequential scenario!
             if FeatureConfig.CHORDS_AS_NOTES:
-                if chord.part_of_previous or \
-                        (len(chord_sequence) > idx + 1 and chord_sequence[idx + 1].part_of_previous):
+                if next_chord.part_of_previous:
                     pruning = None
 
             # branch the  candidate sequences with the chord
@@ -585,7 +590,10 @@ class Solver:
                 raise modelling.NoValidFrettingException(chord, string_config)
 
             # copy and prune
-            candidate_sequences = self._prune(candidate_sequences_new)
+            if pruning is not None:
+                candidate_sequences = self._prune(candidate_sequences_new)
+            else:
+                candidate_sequences = candidate_sequences_new
             del candidate_sequences_new
 
         # find the best sequence(s)

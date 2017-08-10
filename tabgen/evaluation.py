@@ -77,11 +77,11 @@ class BaselineChordFrettingEvaluator(ChordFrettingEvaluatorBase):
 
 class ProbabilityLookupEvaluator(ChordFrettingEvaluatorBase):
     """
-    ProbabilityLookupEvaluator - do a probability lookup or fall back to a low value (~probabilty smoothing)
+    ProbabilityLookupEvaluator - do a probability lookup or fall back to a low value (~probability smoothing)
     """
     def __init__(self):
         ChordFrettingEvaluatorBase.__init__(self, 'probability_lookup')
-        self._probs = np.load(os.path.join(Path.DATA, 'probabilities_1.npy')).tolist()
+        self._probs = list(np.load(os.path.join(Path.DATA, 'probabilities_1.npy')).tolist())
 
         # mask to exclude lookahead features
         self._columns = [col for col in pd.read_csv(Path.FEATURE_FILE, nrows=0).columns if not col.startswith('prob')]
@@ -168,7 +168,7 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
             # load from files
             try:
                 self._model.load_weights(self._path_weights)
-                self._max_vals = np.load(self._path_maxvals)
+                self._max_values = np.load(self._path_maxvals)
                 print('Weights found and loaded. Regression model ready.')
                 self._trained = True
             except ValueError:
@@ -208,16 +208,16 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
             xx = np.concatenate([xx_prev, xx], axis=1)
 
         # scale & remember scaling factor
-        self._max_vals = (
+        self._max_values = (
             [max(x, 1) for x in np.max(xx, axis=0).max(axis=0)],
             # [max(y, 1) for y in yy.max(axis=0)]
             max(max(yy), 1)
         )
-        print('Max Vals: ', self._max_vals)
-        np.save(self._path_maxvals, self._max_vals)  # save maxvals
+        print('maxvals: ', self._max_values)
+        np.save(self._path_maxvals, self._max_values)  # save maxvals
 
-        xx /= self._max_vals[0]
-        yy /= self._max_vals[1]
+        xx /= self._max_values[0]
+        yy /= self._max_values[1]
 
         print('done')
         return xx, yy
@@ -277,13 +277,13 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
             [handle.features[ff] for ff in self._source_names]
             for handle in fretting_handles
         ]])
-        xx = (xx / self._max_vals[0])
+        xx = (xx / self._max_values[0])
 
         # reshape for non-LSTM-like input
         # xx = xx.reshape(1, -1)
 
         cost = self._model.predict(xx)[0][0]
-        cost *= self._max_vals[1]
+        cost *= self._max_values[1]
 
         return cost
 
@@ -349,7 +349,7 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
             # load from files
             try:
                 self._model.load_weights(self._path_weights)
-                self._max_vals = np.load(self._path_maxvals)
+                self._maxvals = np.load(self._path_maxvals)
                 print('Weights found and loaded. LSTM ready.')
                 self._trained = True
             except ValueError:
@@ -376,13 +376,13 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         ], axis=1)
 
         # scale & remember scaling factor
-        self._max_vals = (
+        self._maxvals = (
             [max(x, 1) for x in np.max(xx, axis=0).max(axis=0)],
             [max(y, 1) for y in yy.max(axis=0)]
         )
-        np.save(self._path_maxvals, self._max_vals)  # save maxvals
-        xx /= self._max_vals[0]
-        yy /= self._max_vals[1]
+        np.save(self._path_maxvals, self._maxvals)  # save maxvals
+        xx /= self._maxvals[0]
+        yy /= self._maxvals[1]
 
         return xx, yy
 
@@ -408,10 +408,10 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
             )] + xx
             prev_x = prev_x.previous
 
-        xx = np.array([xx]) / self._max_vals[0]
+        xx = np.array([xx]) / self._maxvals[0]
 
         # get yy
-        yy = np.array([[fretting.features[ff] for ff in self._target_names]]) / self._max_vals[1]
+        yy = np.array([[fretting.features[ff] for ff in self._target_names]]) / self._maxvals[1]
 
         assert xx.shape == (1, FeatureConfig.context_length, len(self._source_names))
         assert yy.shape == (1, len(self._target_names))
@@ -463,10 +463,10 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
 
     def inverse_scale(self, xx: np.ndarray) -> np.ndarray:
         """
-        Scale a dataset by the maxvals (inverted transform)
+        Scale a dataset by the maximum values (inverted transform)
         :param xx: normalised numpy array
         :type xx: np.ndarray
         :return: xx in original scale
         :rtype: np.ndarray
         """
-        return xx * self._max_vals[0]
+        return xx * self._maxvals[0]

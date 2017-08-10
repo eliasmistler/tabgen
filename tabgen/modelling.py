@@ -152,7 +152,7 @@ class StringConfig(StringConfigBase):
 
     def __init__(self, string_pitches: list, num_frets: int):
         """
-            :param string_pitches: individual pitches of the strings, list of int; e.g. EADGBE: [40,45,50,55,59,64]
+            :param string_pitches: individual pitches of the strings, list of int; e.g. [40,45,50,55,59,64]
             :type string_pitches: list
             :param num_frets: Number of frets
             :type num_frets: int
@@ -354,7 +354,7 @@ class Chord:
         :type string_config: StringConfigBase
         :param pruning_config: pruning configuration
         :type pruning_config: PruningConfig
-        :param evaluator: Evalutator for pruning purposes
+        :param evaluator: evaluator for pruning purposes
         :type evaluator: ChordFrettingEvaluatorBase
         :param next_pitches: Next chord's pitches (for lookahead-prediction)
         :type next_pitches: list of Pitch
@@ -430,7 +430,7 @@ class Chord:
             raise NoValidFrettingException(self, string_config)
 
         # heuristic filtering
-        if FeatureConfig.HEURISTIC_PREFILTER:
+        if FeatureConfig.HEURISTIC_FILTER:
             chord_frettings_filtered = chord_frettings
 
             if FeatureConfig.CHORDS_AS_NOTES:
@@ -438,12 +438,14 @@ class Chord:
                 if self._part_of_previous:
                     chord_frettings_filtered = [
                         cf for cf in chord_frettings
-                        if abs(cf[0].fret - prev.note_frettings[0].fret) <= FeatureConfig.HEURISTIC_MAX_FRETS
+                        if cf[0].fret == 0 or prev.note_frettings[0].fret == 0
+                        or abs(cf[0].fret - prev.note_frettings[0].fret) <= FeatureConfig.HEURISTIC_MAX_FRETS
                     ]
 
             else:
                 chord_frettings_filtered = [
                     cf for cf in chord_frettings
+                    # if min([nf.fret for nf in cf]) == 0 or
                     if max([nf.fret for nf in cf]) - min([nf.fret for nf in cf]) <= FeatureConfig.HEURISTIC_MAX_FRETS
                     and len(set([nf.fret for nf in cf])) <= FeatureConfig.HEURISTIC_MAX_FINGERS
                 ]
@@ -686,7 +688,7 @@ class ChordFretting:
                             FeatureConfig.descriptors_functions[descriptor](items)
 
             # calculate the correlation coefficient between frets and strings
-            if FeatureConfig.frettings_desc_corrcoef:
+            if FeatureConfig.frettings_desc_corr_coef:
                 items = [list(nf.to_dict().values()) for nf in self._note_frettings]
                 if len(items) <= 1 or min(np.std(items, axis=0)) == 0.0:
                     cc = 0.0
@@ -1004,7 +1006,7 @@ class ChordFrettingSequence:
         :type string_config: StringConfigBase
         :param pruning_config: pruning_config configuration
         :type pruning_config: PruningConfig
-        :param evaluator: Evalutator for pruning_config purposes
+        :param evaluator: evaluator for pruning_config purposes
         :type evaluator: ChordFrettingEvaluatorBase
         :return: possible frettings of the chord
         :rtype: list of ChordFretting
@@ -1017,7 +1019,7 @@ class ChordFrettingSequence:
 
         previous = None
         if len(self) > 0:
-            previous = self[len(self) - 1]
+            previous = self[-1]
             previous.next_pitches = chord.pitches
 
         try:
