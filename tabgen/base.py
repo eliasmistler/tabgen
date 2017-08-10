@@ -1,5 +1,10 @@
 """
-Base classes for polymorphism
+module tabgen.base
+
+Description:  Base classes for polymorphism
+
+Author:       Elias Mistler
+Institute:    The University of Edinburgh
 """
 
 

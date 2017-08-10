@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # from tabgen.definitions import *
 from tabgen import evaluation
 from tabgen import processing
@@ -10,11 +11,12 @@ input_files = ['./data/evaluation_input/215155 - Black Sabbath - Paranoid (guita
 # if not evaluator.is_trained:
 #     evaluator.train(10)
 
-evaluator = evaluation.RegressionChordFrettingEvaluator()
-if not evaluator.is_trained:
-    evaluator.train()
+# evaluator = evaluation.RegressionChordFrettingEvaluator()
+# if not evaluator.is_trained:
+#     evaluator.train()
 
 # evaluator = evaluation.DummyFrettingEvaluator()
+evaluator = evaluation.ProbabilityLookupEvaluator()
 
 pruning = modelling.PruningConfig(
     candidate_beam_width=0.5, max_candidates=3,

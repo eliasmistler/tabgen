@@ -1,3 +1,11 @@
+"""
+module tabgen.base
+
+Description:  Configuration to run tabgen
+
+Author:       Elias Mistler
+Institute:    The University of Edinburgh
+"""
 import os
 
 # noinspection PyUnresolvedReferences
@@ -39,25 +47,30 @@ class Path(object):
 
 # Core settings for feature generation
 class FeatureConfig(object):
-    # SETTINGS START HERE
-    HEURISTIC_PREFILTER = True
+
+    # =================== #
+    # SETTINGS START HERE #
+    # =================== #
+
+    HEURISTIC_PREFILTER = True  # filter frettings before evaluating their cost
     HEURISTIC_MAX_FRETS = 4  # max fret range (finger spread) within a chord
     HEURISTIC_MAX_FINGERS = 4  # max number of different frets (i.e. fingers, considering barre)
 
     CHORDS_AS_NOTES = False  # scan through chords vertically instead of using explicit chord handling
-    DELTA_MODE = False
+    DELTA_MODE = False  # use first derivation of features instead of plain features
 
-    max_depth = 1  # depth of features (i.e. go back (max_depth) chords)
-    num_strings = 6
-    num_frets = 24
+    context_length = 1  # go back (context_length) chords when evaluating
+    num_strings = 6  # max. number of strings to be considered for sparse representation
+    num_frets = 24  # max. number of frets to be considered for sparse representation
 
-    basic = False  # duration, count, is_chord, ...
+    basic = False  # some basic (useless?) features: duration, count, is_chord, ...
 
-    frettings_vectorised = False  # extract string{#}_played (bool) and string{#}_fret (int 0-24)?
-    frettings_sparse = False  # string{#}_fret{#}_played --> full boolean maps
-    frettings_desc = True  # extract general frettings_desc? (mean, min, max, ...)
-    frettings_desc_corrcoef = True
+    frettings_vectorised = True  # vector representation: string{#}_played (bool) and string{#}_fret (int 0-24)?
+    frettings_sparse = False  # sparse matrix: string{#}_fret{#}_played --> full boolean maps
+    frettings_desc = False  # describe frettings by descriptors (descriptors_functions)
+    frettings_desc_corrcoef = True  # include correlation coefficient between string and fret distribution
 
+    # descriptor functions to be used for frettings / pitches
     descriptors_functions = {
         'mean': np.mean,
         'std': np.std,  # if len(x) > 0 else 0,
@@ -68,16 +81,25 @@ class FeatureConfig(object):
         'max': max,
         'range': lambda x: max(x) - min(x)
     }
+    if CHORDS_AS_NOTES:
+        # if only looking at one note, there is no point in all the descriptors
+        descriptors_functions = {
+            'mean': np.mean
+        }
 
     pitch = False  # include the pitches at the next time step (for RNN predictions)
-    pitch_desc = True  # ... as frettings_desc
-    pitch_sparse = False  # ... as sparse encoding
-    pitch_sparse_min = 11
-    pitch_sparse_max = 88
+    pitch_desc = False  # describe pitch intention by descriptors (descriptors_functions)
+    pitch_sparse = True  # sparse pitch representation
+    pitch_sparse_min = 11  # minimum pitch to consider
+    pitch_sparse_max = 88  # maximum pitch to consider
 
-    heuristics = True
+    heuristics = False  # pre-calculate some baseline heuristics
 
-    # SETTINGS END HERE - DO NOT CHANGE BELOW
+    # ================= #
+    # SETTINGS END HERE
+    # ================= #
+
+    # always keep this in sync with any changes to features! has to count the features used!
     num_features_total = (
         (frettings_vectorised * 2 * num_strings) +
         (frettings_sparse * num_strings * (num_frets + 1)) +
@@ -89,6 +111,42 @@ class FeatureConfig(object):
         (heuristics * 6) +
         (CHORDS_AS_NOTES * 1)  # for sequential handling of chords: part_of_previous
     )
+
+    # ============= #
+    # sanity checks #
+    # ============= #
+
+    # sanity check: FeatureConfig
+    assert \
+        type(HEURISTIC_PREFILTER) is bool and \
+        type(HEURISTIC_MAX_FRETS) is int and \
+        type(HEURISTIC_MAX_FINGERS) is int and \
+        \
+        type(CHORDS_AS_NOTES) is bool and \
+        type(DELTA_MODE) is bool and \
+        \
+        type(context_length) is int and \
+        type(num_strings) is int and \
+        type(num_frets) is int and \
+        \
+        type(basic) is bool and \
+        \
+        type(frettings_vectorised) is bool and \
+        type(frettings_sparse) is bool and \
+        type(frettings_desc) is bool and \
+        type(frettings_desc_corrcoef) is bool and \
+        \
+        type(descriptors_functions) is dict and \
+        \
+        type(pitch) is bool and \
+        type(pitch_desc) is bool and \
+        type(pitch_sparse) is bool and \
+        type(pitch_sparse_min) is int and \
+        type(pitch_sparse_max) is int and \
+        \
+        type(heuristics) is bool and \
+        \
+        type(num_features_total) is int
 
 # sanity check: directories
 assert os.path.isdir(Path.ROOT)
@@ -102,19 +160,12 @@ if not os.path.isdir(Path.FEATURE_FOLDER):
 if not os.path.isdir(Path.VALIDATION_OUTPUT):
     os.mkdir(Path.VALIDATION_OUTPUT)
 
-# sanity check: is MuseScore executable?
+# sanity check: is MuseScore available and executable?
 assert os.path.isfile(Path.MSCORE) and os.access(Path.MSCORE, os.X_OK), \
     'MuseScore not found in path: {}'.format(Path.MSCORE)
 
 # sanity check: debug settings
 assert type(TRACK_PERFORMANCE) is bool
 
-# sanity check: FeatureConfig
-assert type(FeatureConfig.max_depth) is int \
-    and type(FeatureConfig.frettings_vectorised) is bool \
-    and type(FeatureConfig.frettings_desc) is bool \
-    and type(FeatureConfig.num_strings) is int
-
-# raise NotImplementedError()
-# TODO: sequential model sometimes ends up with no possible frettings --> instruments are discarded
+# TODO: sequential model sometimes ends up with no possible frettings --> some instruments are discarded
 # try: 213511 - Aerosmith - Dream On (guitar pro).gp5.mscx
