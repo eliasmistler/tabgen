@@ -81,7 +81,7 @@ class ProbabilityLookupEvaluator(ChordFrettingEvaluatorBase):
     """
     def __init__(self):
         ChordFrettingEvaluatorBase.__init__(self, 'probability_lookup')
-        self._probs = list(np.load(os.path.join(Path.DATA, 'probabilities_1.npy')).tolist())
+        self._probs = dict(np.load(os.path.join(Path.DATA, 'probabilities_1.npy')).tolist())
 
         # mask to exclude lookahead features
         self._columns = [col for col in pd.read_csv(Path.FEATURE_FILE, nrows=0).columns if not col.startswith('prob')]
