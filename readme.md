@@ -1,5 +1,17 @@
 This technical documentation is to accompany the _tabgen_ tablature generation system. The full source code is available on [GitHub](https://github.com/gitarreneli/tabgen). Additional comments and interface documentations can be found as inline comments in the code.
 
+## Prerequisistes
+In order to fully run _tabgen_, you need to install the following software (recommended versions in brackets):
+
+* [Python](https://www.python.org/) 3 (3.5), inluding the libraries:
+    * [tensorflow](https://www.tensorflow.org/) (1.2), ideally as [tensorflow-gpu](https://pypi.python.org/pypi/tensorflow-gpu/) on top of [CUDA](https://developer.nvidia.com/cuda-downloads)
+    * [keras](https://keras.io/) (2.0.5)
+    * [scikit-learn](http://scikit-learn.org/stable/) (0.18.1)
+    * [numpy](http://www.numpy.org/) (1.13.0)
+    * [pandas](http://pandas.pydata.org/) (0.20.2)
+    * [tqdm](https://pypi.python.org/pypi/tqdm) (4.14.0)
+* [MuseScore](https://musescore.org) (2.0.3)
+
 ## Running the system
 To run the system, ...
 

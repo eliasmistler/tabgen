@@ -30,7 +30,8 @@ from .base import *
 TRACK_PERFORMANCE = False  # print runtime information to the console
 
 
-# PATHS
+# PATHS - make sure to adjust Path.MSCORE
+# only touch the other paths if you are sure what you're doing
 class Path(object):
     ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.pardir))
     DATA = os.path.join(ROOT, 'data')
@@ -52,23 +53,27 @@ class FeatureConfig(object):
     # SETTINGS START HERE #
     # =================== #
 
+    # pre-filtering
     HEURISTIC_PREFILTER = True  # filter frettings before evaluating their cost
     HEURISTIC_MAX_FRETS = 4  # max fret range (finger spread) within a chord
     HEURISTIC_MAX_FINGERS = 4  # max number of different frets (i.e. fingers, considering barre)
 
-    CHORDS_AS_NOTES = False  # scan through chords vertically instead of using explicit chord handling
+    # special handling
+    CHORDS_AS_NOTES = True  # scan through chords vertically instead of using explicit chord handling
     DELTA_MODE = False  # use first derivation of features instead of plain features
+
+    basic = False  # some basic (useless?) features: duration, count, is_chord, ...
+
+    # Fretting features - select one
+    frettings_vectorised = False  # vector representation: string{#}_played (bool) and string{#}_fret (int 0-24)?
+    frettings_sparse = False  # sparse matrix: string{#}_fret{#}_played --> full boolean maps
+    frettings_desc = True  # describe frettings by descriptors (descriptors_functions)
+
+    frettings_desc_corrcoef = True  # include correlation coefficient between string and fret distribution
 
     context_length = 1  # go back (context_length) chords when evaluating
     num_strings = 6  # max. number of strings to be considered for sparse representation
     num_frets = 24  # max. number of frets to be considered for sparse representation
-
-    basic = False  # some basic (useless?) features: duration, count, is_chord, ...
-
-    frettings_vectorised = True  # vector representation: string{#}_played (bool) and string{#}_fret (int 0-24)?
-    frettings_sparse = False  # sparse matrix: string{#}_fret{#}_played --> full boolean maps
-    frettings_desc = False  # describe frettings by descriptors (descriptors_functions)
-    frettings_desc_corrcoef = True  # include correlation coefficient between string and fret distribution
 
     # descriptor functions to be used for frettings / pitches
     descriptors_functions = {
@@ -83,13 +88,14 @@ class FeatureConfig(object):
     }
     if CHORDS_AS_NOTES:
         # if only looking at one note, there is no point in all the descriptors
+        frettings_desc_corrcoef = False
         descriptors_functions = {
             'mean': np.mean
         }
 
     pitch = False  # include the pitches at the next time step (for RNN predictions)
-    pitch_desc = False  # describe pitch intention by descriptors (descriptors_functions)
-    pitch_sparse = True  # sparse pitch representation
+    pitch_desc = True  # describe pitch intention by descriptors (descriptors_functions)
+    pitch_sparse = False  # sparse pitch representation
     pitch_sparse_min = 11  # minimum pitch to consider
     pitch_sparse_max = 88  # maximum pitch to consider
 
@@ -166,6 +172,3 @@ assert os.path.isfile(Path.MSCORE) and os.access(Path.MSCORE, os.X_OK), \
 
 # sanity check: debug settings
 assert type(TRACK_PERFORMANCE) is bool
-
-# TODO: sequential model sometimes ends up with no possible frettings --> some instruments are discarded
-# try: 213511 - Aerosmith - Dream On (guitar pro).gp5.mscx

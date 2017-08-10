@@ -338,6 +338,10 @@ class Chord:
     def duration(self):
         return self._duration
 
+    @property
+    def part_of_previous(self):
+        return self._part_of_previous
+
     def get_chord_frettings(self, string_config: StringConfigBase,
                             evaluator: ChordFrettingEvaluatorBase,
                             pruning_config: PruningConfig=None,
@@ -532,6 +536,7 @@ class ChordFretting:
         assert type(part_of_previous) is bool
 
         self._features = {}
+        self._features_delta = {}
         self._cost = None
 
         if sorted(strings) != sorted(list(set(strings))):
@@ -850,16 +855,16 @@ class ChordFretting:
 
     @property
     def features_delta(self) -> dict:
-        delta_features = {}
-        assert len(self.previous.features_raw) == len(self.features_raw)
-        for key in self.features_raw:
-            # shift next_ features so they are in line with the rest
-            if key.startswith('next'):
-                delta_features[key.replace('next_', '')] = \
-                    self.previous.features_raw[key] - self.previous.previous.features_raw[key]
-            else:
-                delta_features[key] = self.features_raw[key] - self.previous.features_raw[key]
-        return delta_features
+        if self._features_delta == {} or self._features == {}:
+            assert len(self.previous.features_raw) == len(self.features_raw)
+            for key in self.features_raw:
+                # shift next_ features so they are in line with the rest
+                if key.startswith('next'):
+                    self._features_delta[key.replace('next_', '')] = \
+                        self.previous.features_raw[key] - self.previous.previous.features_raw[key]
+                else:
+                    self._features_delta[key] = self.features_raw[key] - self.previous.features_raw[key]
+        return self._features_delta
 
     @property
     def duration(self):
@@ -1015,15 +1020,19 @@ class ChordFrettingSequence:
             previous = self[len(self) - 1]
             previous.next_pitches = chord.pitches
 
-        chord_frettings = chord.get_chord_frettings(
-            string_config, evaluator, pruning_config, prev=previous
-        )
+        try:
+            chord_frettings = chord.get_chord_frettings(
+                string_config, evaluator, pruning_config, prev=previous
+            )
+        except NoValidFrettingException:
+            chord_frettings = []  # if no frettings, just pass back empty array (sequential scenario)
 
         sequences = []
         for chord_fretting in chord_frettings:
             seq = ChordFrettingSequence(self._frettings.copy())
             seq.append(chord_fretting)
             sequences.append(seq)
+
         return sequences
 
     def to_ascii_tab(self, string_config: StringConfigBase,

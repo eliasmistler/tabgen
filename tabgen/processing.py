@@ -10,9 +10,8 @@ Institute:    The University of Edinburgh
 """
 import xml.etree.ElementTree as ElementTree
 
-import tabgen.modelling
-
 from .definitions import *
+from . import modelling
 
 
 class Parser:
@@ -113,7 +112,7 @@ class Parser:
                 # exclude [0 0 0] etc. (e.g. drums)
                 if min(strings) > 0:
                     self._instruments[instrument_id] = dict(
-                        string_config=tabgen.modelling.StringConfig(strings, frets),
+                        string_config=modelling.StringConfig(strings, frets),
                         name=name
                     )
                     self._ignored_chords[instrument_id] = 0
@@ -143,7 +142,7 @@ class Parser:
     def get_string_config(self, instrument_id: int) -> StringConfigBase:
         return self._instruments[instrument_id]['string_config']
 
-    def get_chord_fretting_sequence(self, instrument_id: int) -> tabgen.modelling.ChordFrettingSequence:
+    def get_chord_fretting_sequence(self, instrument_id: int) -> modelling.ChordFrettingSequence:
         return self._instruments[instrument_id]['chord_fretting_sequence']
 
     def get_chords(self, instrument_id: int) -> list:
@@ -168,7 +167,7 @@ class Parser:
 
             if instrument_id in self.instrument_ids:
                 chords = []
-                chord_fretting_sequence = tabgen.modelling.ChordFrettingSequence()
+                chord_fretting_sequence = modelling.ChordFrettingSequence()
 
                 # number of strings for string inversion (1-6 vs. 6-1)
                 num_strings = self.get_string_config(instrument_id).num_strings
@@ -219,8 +218,8 @@ class Parser:
                             fret = int(note.find('fret').text)
                             fully_muted = note.find('ghost') is not None and note.find('ghost').text == '1'
 
-                            pitches.append(tabgen.modelling.Pitch(pitch, fully_muted))
-                            note_frettings.append(tabgen.modelling.NoteFretting(string, fret, fully_muted))
+                            pitches.append(modelling.Pitch(pitch, fully_muted))
+                            note_frettings.append(modelling.NoteFretting(string, fret, fully_muted))
 
                         # CONCATENATE INTO SEQUENCE
                         if FeatureConfig.CHORDS_AS_NOTES:
@@ -228,12 +227,12 @@ class Parser:
                             # chord as sequence of pitches
                             for ii, pitch in enumerate(pitches):
                                 chords.append(
-                                    tabgen.modelling.Chord(duration, [pitch], ii != 0)
+                                    modelling.Chord(duration, [pitch], ii != 0)
                                 )
                             # chord fretting as sequence of note frettings
                             for ii, note_fretting in enumerate(note_frettings):
                                 chord_fretting_sequence.append(
-                                    tabgen.modelling.ChordFretting(
+                                    modelling.ChordFretting(
                                         duration, [note_fretting], self._evaluator, None,
                                         [], self.get_string_config(instrument_id), ii != 0
                                     )
@@ -242,11 +241,11 @@ class Parser:
                             # handle chords explicitly as chords
                             # chords
                             chords.append(
-                                tabgen.modelling.Chord(duration, pitches, False)
+                                modelling.Chord(duration, pitches, False)
                             )
                             # chord frettings
                             chord_fretting_sequence.append(
-                                tabgen.modelling.ChordFretting(
+                                modelling.ChordFretting(
                                     duration, note_frettings, self._evaluator, None,
                                     [], self.get_string_config(instrument_id), False)
                             )
@@ -258,7 +257,7 @@ class Parser:
                 self._instruments[instrument_id]['chords'] = chords
 
     def update_chord_fretting_sequence(self, instrument_id: int,
-                                       chord_fretting_sequence: tabgen.modelling.ChordFrettingSequence) -> None:
+                                       chord_fretting_sequence: modelling.ChordFrettingSequence) -> None:
         """
         Replace the frettings for one instrument
         :param instrument_id: ID of the instrument (should be int (?))
@@ -268,7 +267,7 @@ class Parser:
         """
         assert instrument_id in self.instrument_ids, \
             'Instrument {} does not exist: {}'.format(instrument_id, self.instrument_ids)
-        assert isinstance(chord_fretting_sequence, tabgen.modelling.ChordFrettingSequence)
+        assert isinstance(chord_fretting_sequence, modelling.ChordFrettingSequence)
         assert len(chord_fretting_sequence) == len(self.get_chord_fretting_sequence(instrument_id)), \
             'Sequence has wrong length {}, expected: {}'.format(
                 len(chord_fretting_sequence), len(self.get_chord_fretting_sequence(instrument_id)))
@@ -403,7 +402,7 @@ class Parser:
 class Solver:
     """
     Solver for finding the best chord fretting sequence from a chord sequence
-    based on a scoring function implemented  by a subclass of tabgen.modelling.ChordFrettingEvaluatorBase
+    based on a scoring function implemented  by a subclass of modelling.ChordFrettingEvaluatorBase
     """
 
     __solve_count__ = 0
@@ -439,8 +438,8 @@ class Solver:
         :type save_files: bool
         :param verbose: how much to print on stdout (0: nothing, 1: some, 2: more, 3: all)
         :type verbose: int
-        :return: solved chord fretting sequences as dictionary {'filename.mscx': tabgen.modelling.ChordFrettingSequence}
-        :rtype: dict of str, tabgen.modelling.ChordFrettingSequence
+        :return: solved chord fretting sequences as dictionary {'filename.mscx': modelling.ChordFrettingSequence}
+        :rtype: dict of str, modelling.ChordFrettingSequence
         """
         assert type(input_files) is list
 
@@ -473,7 +472,7 @@ class Solver:
                 # solve
                 try:
                     sequence_generated = self.solve(parser.get_chords(instrument_id), string_config, verbose)
-                except tabgen.modelling.NoValidFrettingException as ee:
+                except modelling.NoValidFrettingException as ee:
                     warnings.warn(ee.message)
                     warnings.warn('Skipping instrument {} - "{}" for {}'.format(
                         instrument_id, parser.get_instrument_name(instrument_id), input_file
@@ -508,8 +507,8 @@ class Solver:
         return sequences
 
     @staticmethod
-    def get_accuracy(sequence_generated: tabgen.modelling.ChordFrettingSequence,
-                     sequence_original: tabgen.modelling.ChordFrettingSequence, detail: bool=True) -> float:
+    def get_accuracy(sequence_generated: modelling.ChordFrettingSequence,
+                     sequence_original: modelling.ChordFrettingSequence, detail: bool=True) -> float:
         """
         get the accuracy measure between to sequences
         :param sequence_generated: the generated sequence to assess
@@ -533,7 +532,7 @@ class Solver:
         return float(n_same) / n_total * 100.0
 
     def solve(self, chord_sequence: list, string_config: StringConfigBase, verbose: int=2) \
-            -> tabgen.modelling.ChordFrettingSequence:
+            -> modelling.ChordFrettingSequence:
         """
         finds the best ChordFrettingSequence for a given chord_sequence
         :param chord_sequence: the chords to be transferred to the instrument
@@ -547,36 +546,43 @@ class Solver:
         # sanity check
         assert type(chord_sequence) is list
         for chord in chord_sequence:
-            assert isinstance(chord, tabgen.modelling.Chord)
-        assert isinstance(string_config, tabgen.modelling.StringConfig), \
+            assert isinstance(chord, modelling.Chord)
+        assert isinstance(string_config, modelling.StringConfig), \
             '{} is not of type StringConfig!'.format(string_config)
 
         t_start = time()
 
         # initial chord candidates
-        next_chord = tabgen.modelling.Chord(1.0, [], False)
+        next_chord = modelling.Chord(1.0, [], False)
         if len(chord_sequence) > 1:
             next_chord = chord_sequence[1].pitches
 
-        candidate_sequences = [tabgen.modelling.ChordFrettingSequence([x]) for x in
+        # initialise the sequences without pruning
+        candidate_sequences = [modelling.ChordFrettingSequence([x]) for x in
                                chord_sequence[0].get_chord_frettings(
-                                   string_config, self._evaluator, self._pruning_config, next_chord, None)]
+                                   string_config, self._evaluator, None, next_chord, None)]
 
         # subsequent chords
         for idx, chord in tqdm(enumerate(chord_sequence[1:]), desc='solving', unit='chord', initial=1,
                                total=len(chord_sequence), disable=verbose == 0):
             candidate_sequences_new = []
 
-            # # get the next chord
-            # next_chord = tabgen.modelling.Chord(1.0, [])
-            # if len(chord_sequence) > idx + 2:
-            #     next_chord = chord_sequence[idx + 2]
+            pruning = self._pruning_config
+
+            # don't prune within a chord in the sequential scenario!
+            if FeatureConfig.CHORDS_AS_NOTES:
+                if chord.part_of_previous or \
+                        (len(chord_sequence) > idx + 1 and chord_sequence[idx + 1].part_of_previous):
+                    pruning = None
 
             # branch the  candidate sequences with the chord
             for candidate_sequence in candidate_sequences:
                 candidate_sequences_new += candidate_sequence.branch(
-                    chord, string_config, self._evaluator, self._pruning_config
+                    chord, string_config, self._evaluator, pruning
                 )
+
+            if len(candidate_sequences_new) == 0:
+                raise modelling.NoValidFrettingException(chord, string_config)
 
             # copy and prune
             candidate_sequences = self._prune(candidate_sequences_new)

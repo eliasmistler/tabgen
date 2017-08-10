@@ -7,8 +7,8 @@ Author:       Elias Mistler
 Institute:    The University of Edinburgh
 """
 from .definitions import *
-from tabgen import processing, evaluation
-from tabgen.modelling import InvalidFrettingException
+from . import processing, evaluation
+from .modelling import InvalidFrettingException
 from tqdm import tqdm
 
 

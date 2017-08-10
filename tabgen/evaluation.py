@@ -87,6 +87,9 @@ class ProbabilityLookupEvaluator(ChordFrettingEvaluatorBase):
         self._columns = [col for col in pd.read_csv(Path.FEATURE_FILE, nrows=0).columns if not col.startswith('prob')]
         self._mask = [int(not col.startswith('next')) for col in self._columns]
 
+        self._lookups_failed = 0
+        self._lookups_total = 0
+
     def evaluate(self, fretting: ChordFretting) -> float:
 
         # form data into the right shape
@@ -104,9 +107,14 @@ class ProbabilityLookupEvaluator(ChordFrettingEvaluatorBase):
         if key in self._probs:
             prob = self._probs[key]
         else:
+            self._lookups_failed += 1
             prob = 0.001  # set a low probability for unseen sequences
+        self._lookups_total += 1
 
         return -np.log(prob)
+
+    def __del__(self):
+        print('Failed:', self._lookups_failed, '/', self._lookups_total)
 
 
 class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
@@ -412,6 +420,7 @@ class LSTMChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         # xx = xx.reshape(1, -1)
 
         # Get cost as prediction loss from model
+        # TODO: maybe discretise first and then compare to input?
         cost = self._model.evaluate(xx, yy, verbose=0)
         return cost
 
