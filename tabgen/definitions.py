@@ -41,7 +41,8 @@ class Path(object):
         MSCORE = 'C:\\Program Files (x86)\\MuseScore 2\\bin\\MuseScore.exe'
     else:
         MSCORE = os.path.join(ROOT, 'mscore')
-    TRAINING_INPUT = os.path.join(DATA, 'training_input')
+    # TRAINING_INPUT = os.path.join(DATA, 'training_input')
+    TRAINING_INPUT = os.path.join(DATA, 'tabs_dedup')
     VALIDATION_INPUT = os.path.join(DATA, 'evaluation_input')
     VALIDATION_OUTPUT = os.path.join(DATA, 'evaluation_output')
 
@@ -99,7 +100,7 @@ class FeatureConfig(object):
     pitch_sparse_min = 11  # minimum pitch to consider
     pitch_sparse_max = 88  # maximum pitch to consider
 
-    heuristics = False  # pre-calculate some baseline heuristics
+    heuristics = True  # pre-calculate some baseline heuristics
 
     # ================= #
     # SETTINGS END HERE

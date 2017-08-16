@@ -23,14 +23,14 @@ evaluators = {
     #     fret_mean=0.01))
     # 'baseline_heuristic_distance_move': evaluation.BaselineChordFrettingEvaluator(dict(heuristic_distance_move=1.0)),
     # 'probability_lookup': evaluation.ProbabilityLookupEvaluator(),
-    'regression': evaluation.RegressionChordFrettingEvaluator(),
+    # 'regression': evaluation.RegressionChordFrettingEvaluator(),
     'lstm': evaluation.LSTMChordFrettingEvaluator(),
 }
 
 to_train = ['regression', 'lstm']
 for mm in to_train:
     if mm in evaluators and not evaluators[mm].is_trained:
-        evaluators[mm].train()
+        evaluators[mm].train(2)
 
 pruning = modelling.PruningConfig(
     candidate_beam_width=0.5, max_candidates=2,
@@ -41,4 +41,4 @@ pruning = modelling.PruningConfig(
 for eval_name, evaluator in evaluators.items():
     parser = processing.Parser(evaluator)
     solver = processing.Solver(evaluator, pruning)
-    solver.solve_multi(input_files, parser, False, 1)
+    solver.solve_multi(input_files, parser, True, 1)

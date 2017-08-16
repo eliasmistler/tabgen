@@ -2,6 +2,6 @@
 
 from tabgen import preprocessing
 
-preprocessing.extract_features(force_overwrite=True, delete_mscx_afterwards=False)
+preprocessing.extract_features(force_overwrite=False, delete_mscx_afterwards=True)
 preprocessing.merge_files()
 preprocessing.add_probabilities()

@@ -5,17 +5,22 @@ from tabgen import processing
 from tabgen import modelling
 # import subprocess
 
-input_files = ['./data/evaluation_input/213511 - Aerosmith - Dream On (guitar pro).gp5.mscx']
+# input_files = ['./data/evaluation_input/213511 - Aerosmith - Dream On (guitar pro).gp5.mscx']
+input_files = ['./data/evaluation_input/Bach_Goes_to_Town.mscz.mscx']
+input_files = ['./data/Isaac Albéniz - Asturias (guitar pro).gp5']
 
-# evaluator = evaluation.LSTMChordFrettingEvaluator()
-# if not evaluator.is_trained:
-#     evaluator.train(10)
-
-evaluator = evaluation.RegressionChordFrettingEvaluator()
+evaluator = evaluation.LSTMChordFrettingEvaluator()
 if not evaluator.is_trained:
-    evaluator.train()
+    evaluator.train(2)
 
-# evaluator = evaluation.RandomChordFrettingEvaluator(5)  # seed
+
+# evaluator = evaluation.BaselineChordFrettingEvaluator(dict(heuristic_distance_move=1.0, fret_mean=2.0))
+
+# evaluator = evaluation.RegressionChordFrettingEvaluator()
+# if not evaluator.is_trained:
+#     evaluator.train(2)
+
+# evaluator = evaluation.RandomChordFrettingEvaluator()  # seed
 # evaluator = evaluation.ProbabilityLookupEvaluator()
 
 # pruning = modelling.PruningConfig(
@@ -24,8 +29,8 @@ if not evaluator.is_trained:
 # )
 
 pruning = modelling.PruningConfig(
-    candidate_beam_width=999.9, max_candidates=1,
-    sequence_beam_width=999.9, max_sequences=1,
+    candidate_beam_width=999.9, max_candidates=2,
+    sequence_beam_width=999.9, max_sequences=3,
 )
 
 
@@ -43,4 +48,4 @@ solver = processing.Solver(evaluator, pruning)
 solver.solve_multi(input_files, parser, save_files=True, verbose=2)
 
 # out_file = input_files[0].replace(Path.VALIDATION_INPUT, Path.VALIDATION_OUTPUT).replace('.mscx', '_lstm.mscx')
-# subprocess.call('{} "{}" "{}"'.format(Path.MSCORE, input_files[0], out_file))
+# subprocess.call('{} "{}"'.format(Path.MSCORE, out_file))

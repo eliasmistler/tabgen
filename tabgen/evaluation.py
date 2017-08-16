@@ -227,6 +227,8 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         Train the model -- only do this once, load the weights afterwards
         """
 
+        from keras.callbacks import EarlyStopping
+
         xx, yy = self.load_training_data()
 
         # reshape for non-LSTM-like input
@@ -241,7 +243,11 @@ class RegressionChordFrettingEvaluator(ChordFrettingEvaluatorBase):
         print('Train and validation sets:', x_train.shape, y_train.shape, x_valid.shape, y_valid.shape)
 
         # TRAIN
-        self._model.fit(x_train, y_train, epochs=num_epochs, batch_size=self._batch_size, shuffle=True)
+        early_stopping = EarlyStopping(monitor='val_loss', patience=1)
+        self._model.fit(x_train, y_train, validation_data=(x_valid, y_valid), epochs=num_epochs,
+                        batch_size=self._batch_size, callbacks=[early_stopping])
+
+        # self._model.fit(x_train, y_train, epochs=num_epochs, batch_size=self._batch_size, shuffle=True)
         score_train = self._model.evaluate(x_train, y_train)
         print('\nTraining loss: {} (sqrt: {}) / {} features = {} ({})'.format(
             score_train, np.sqrt(score_train), len(self._target_names),

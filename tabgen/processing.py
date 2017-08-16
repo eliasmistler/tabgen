@@ -14,6 +14,11 @@ from .definitions import *
 from . import modelling
 
 
+class MuseScoreException(Exception):
+    def __init__(self, file: str):
+        self.message = 'MuseScore exception: could not convert file: {}'.format(file)
+
+
 class Parser:
     """
     Parses MuseScoreXML and writes back to it
@@ -51,8 +56,8 @@ class Parser:
         """
         # sanity check
         assert type(file_path) is str
-        assert os.path.isfile(file_path), \
-            '{} is not a valid file!'.format(file_path)
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(file_path)
 
         # reload necessary?
         if (file_path == self._file_path or file_path + '.mscx' == self._file_path) \
@@ -72,8 +77,8 @@ class Parser:
                     call([Path.MSCORE, '-o', mscx_file_path, file_path])
 
                 # conversion errors
-                assert os.path.isfile(mscx_file_path), \
-                    '{} could not be converted to MuseScore XML!'.format(file_path)
+                if not os.path.isfile(mscx_file_path):
+                    raise MuseScoreException('{} could not be converted to MuseScore XML!'.format(file_path))
                 self._file_path = mscx_file_path
 
             print('Importing XML: {}'.format(self._file_path))

@@ -72,7 +72,7 @@ The evaluation module is a collection of evaluation classes, i.e. subclasses of 
 * BaselineChordFrettingEvaluator: A generic class for heuristics, implemented as a hand-tuned linear model. Use the _weights_ dictionary to assign weights to features. If you set _tabgen.definitions.FeatureConfig.heuristics = True_, you will have access to a predefined set of heuristics, available as features _'heuristics\_*'_. For example, use _dict(heuristic\_distance\_move=1.0)_ to generate frettings based on the distance travelled between consecutive frettings.
 * ProbabilityLookupEvaluator: Looks up probabilities from preprocessing. Falls back to a low probability for unseen data.
 * RegressionChordFrettingEvaluator: Estimates the cost function as a predicted negative log probabilty. Refer to the project report for details.
-* LSTMChordFrettingEvaluator: Predicts a new fretting based on previous frettings. As this does not clearly identify a "second best" match, make sure to set your _PruningConfig_ to (0,1,0,1). This effectively disables the tree search and selects the best fit at every time step.
+* LSTMChordFrettingEvaluator: Predicts a new fretting based on previous frettings. As this does not clearly identify a "second best" match, you may want to set your _PruningConfig_ to (0,1,0,1). This effectively disables the tree search and selects the best fit at every time step.
 
 ### tabgen.processing
 This module implements two classes tying the whole system together:

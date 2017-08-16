@@ -40,16 +40,28 @@ def extract_features(force_overwrite: bool=False, delete_mscx_afterwards: bool=F
     # enrich with full path
     input_files = [os.path.join(Path.TRAINING_INPUT, input_file.strip()) for input_file in input_files]
 
+    # randomise for parallel processing
+    np.random.shuffle(input_files)
+
     # extract features
     for input_file in tqdm(input_files, desc='Extracting tab features', unit='file'):
 
+        target_file = os.path.join(Path.FEATURE_FOLDER,
+                                   os.path.relpath(input_file, Path.TRAINING_INPUT).replace('.mscx', '') + '.csv')
+        if os.path.exists(target_file) and not force_overwrite:
+            print('Skipping already done file: {}'.format(target_file))
+            continue
+
         try:
             parser.parse(input_file)
-        except InvalidFrettingException as ee:
-            warnings.warn(ee.message)
-            warnings.warn('Deleting file: {}'.format(input_file))
-            parser.delete_mscx_file()
-            os.remove(input_file.replace('.mscx', ''))
+        except (InvalidFrettingException, processing.MuseScoreException, FileNotFoundError) as ee:
+            warnings.warn('File could not be converted or parsed: {}'.format(input_file))
+            if isinstance(ee, InvalidFrettingException):
+                parser.delete_mscx_file()
+            guitar_pro_file = input_file.replace('.mscx', '')
+            if os.path.exists(guitar_pro_file):
+                warnings.warn('Deleting file: {}'.format(input_file))
+                os.remove(guitar_pro_file)
             continue
 
         input_file = parser.mscx_file
@@ -58,7 +70,6 @@ def extract_features(force_overwrite: bool=False, delete_mscx_afterwards: bool=F
                     for instrument_id in parser.instrument_ids
                     for chord_fretting in parser.get_chord_fretting_sequence(instrument_id)]
 
-        target_file = os.path.join(Path.FEATURE_FOLDER, os.path.relpath(input_file, Path.TRAINING_INPUT) + '.csv')
         pd.DataFrame(pd.DataFrame(features).astype(np.float)).to_csv(target_file, index=False)
 
         if delete_mscx_afterwards:
@@ -87,6 +98,7 @@ def merge_files() -> None:
                     if not keys == keys_new:
                         warnings.warn('File format not matching: {}'.format(csv_file))
                         warnings.warn('Deleting file.')
+                        csv.close()
                         os.remove(os.path.join(Path.FEATURE_FOLDER, csv_file))
                         continue
 
