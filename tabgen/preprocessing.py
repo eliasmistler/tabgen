@@ -1,20 +1,20 @@
 """
 module tabgen.base
 
-Description:  Processing functions to turn input tablatures into training data
+Description:  Processing functions to turn input tabs into training data
 
 Author:       Elias Mistler
 Institute:    The University of Edinburgh
 """
 from .definitions import *
-from tabgen import processing, evaluation
-from tabgen.modelling import InvalidFrettingException
+from . import processing, evaluation
+from .modelling import InvalidFrettingException
 from tqdm import tqdm
 
 
 def extract_features(force_overwrite: bool=False, delete_mscx_afterwards: bool=False) -> None:
     """
-    extracts csv feature files from TAB_PATH to Path.FEATURE_FOLDER (only if in worklist file WORKLIST_PATH)
+    extracts csv feature files from TAB_PATH to Path.FEATURE_FOLDER
     using the settings from tabgen.definitions
     :param force_overwrite: Overwrites existing feature files
     :type force_overwrite: bool
@@ -23,7 +23,7 @@ def extract_features(force_overwrite: bool=False, delete_mscx_afterwards: bool=F
     """
     assert type(force_overwrite) is bool and type(delete_mscx_afterwards) is bool
 
-    # don't need an evaluator for preprocessing - pass dummy
+    # don't need an evaluator for pre-processing - pass dummy
     parser = processing.Parser(evaluation.DummyFrettingEvaluator())
 
     # get list of input files

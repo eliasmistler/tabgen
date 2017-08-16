@@ -21,8 +21,8 @@ evaluators = {
     #     heuristic_distance_move=0.7,
     #     heuristic_skipped_strings=3,
     #     fret_mean=0.01))
-    # 'baseline_heuristic_distance_move': evaluation.BaselineChordFrettingEvaluator(dict(
-    #     heuristic_distance_move=1.0)),
+    # 'baseline_heuristic_distance_move': evaluation.BaselineChordFrettingEvaluator(dict(heuristic_distance_move=1.0)),
+    # 'probability_lookup': evaluation.ProbabilityLookupEvaluator(),
     'regression': evaluation.RegressionChordFrettingEvaluator(),
     'lstm': evaluation.LSTMChordFrettingEvaluator(),
 }
@@ -41,4 +41,4 @@ pruning = modelling.PruningConfig(
 for eval_name, evaluator in evaluators.items():
     parser = processing.Parser(evaluator)
     solver = processing.Solver(evaluator, pruning)
-    solver.solve_multi(input_files, parser, True, 0)
+    solver.solve_multi(input_files, parser, False, 1)
